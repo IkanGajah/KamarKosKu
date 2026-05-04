@@ -49,6 +49,7 @@ export default function LoginScreen() {
         globalState.role = role;
         globalState.namaLengkap = responseData.data.nama || '';
         globalState.foto = responseData.data.foto || '';
+        globalState.noTelepon = responseData.data.noTelepon || '';
 
         if (role === 'ROLE_OWNER') {
           router.replace('/(owner)' as any);
