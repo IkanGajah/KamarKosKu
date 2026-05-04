@@ -1,11 +1,17 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   Image,
-  Alert
+  Alert,
+  Modal,
+  TextInput,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -16,46 +22,136 @@ import { globalState } from '../_globalState';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const [profile, setProfile] = React.useState({
+  const [profile, setProfile] = useState({
     nama: globalState.namaLengkap || (globalState.email ? globalState.email.split('@')[0] : 'User'),
     email: globalState.email || 'user@example.com',
-    foto: ''
+    foto: '',
+    noTelepon: globalState.noTelepon || ''
   });
 
-  React.useEffect(() => {
-    // Attempt to fetch profile from DB
-    const fetchProfile = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/penyewa/profil`, {
-          headers: {
-            'Authorization': `Bearer ${globalState.token}`
-          }
-        });
-        const json = await res.json();
-        if (json.data) {
-          const newName = json.data.nama || globalState.namaLengkap || globalState.email.split('@')[0];
-          const newFoto = json.data.foto || '';
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [isContactModalVisible, setIsContactModalVisible] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editData, setEditData] = useState({
+    nama: '',
+    noTelepon: ''
+  });
 
-          globalState.namaLengkap = newName;
-          globalState.foto = newFoto;
-
-          setProfile({
-            nama: newName,
-            email: json.data.email || globalState.email,
-            foto: newFoto
-          });
+  const fetchProfile = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/penyewa/profil`, {
+        headers: {
+          'Authorization': `Bearer ${globalState.token}`
         }
-      } catch (e) {
-        console.error(e);
+      });
+      const json = await res.json();
+      if (json.data) {
+        const newName = json.data.nama || globalState.namaLengkap || globalState.email.split('@')[0];
+        const newFoto = json.data.foto || '';
+        const newPhone = json.data.noTelepon || '';
+
+        globalState.namaLengkap = newName;
+        globalState.foto = newFoto;
+        globalState.noTelepon = newPhone;
+
+        setProfile({
+          nama: newName,
+          email: json.data.email || globalState.email,
+          foto: newFoto,
+          noTelepon: newPhone
+        });
+        
+        setEditData(prev => ({
+          ...prev,
+          nama: newName,
+          noTelepon: newPhone
+        }));
       }
-    };
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
     if (globalState.token) {
       fetchProfile();
     }
   }, []);
 
+  const handleOpenEdit = () => {
+    setEditData({
+      nama: profile.nama,
+      noTelepon: profile.noTelepon
+    });
+    setIsEditModalVisible(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editData.nama || !editData.noTelepon) {
+      Alert.alert("Error", "Nama dan Nomor Telepon tidak boleh kosong.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const payload: any = {
+        nama: editData.nama,
+        noTelepon: editData.noTelepon
+      };
+
+      const res = await fetch(`${API_BASE_URL}/penyewa/profil`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${globalState.token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        Alert.alert("Sukses", "Profil berhasil diperbarui.");
+        setIsEditModalVisible(false);
+        fetchProfile();
+      } else {
+        const json = await res.json();
+        Alert.alert("Gagal", json.message || "Gagal memperbarui profil.");
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert("Error", "Gagal menghubungi server.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const contactAdmin = (method: 'whatsapp' | 'call' | 'email') => {
+    const adminPhone = "+6281234567890"; // Ganti dengan nomor admin asli
+    const adminEmail = "support@kosku.com";
+    
+    switch (method) {
+      case 'whatsapp':
+        const message = `Halo Admin KosKu, saya ${profile.nama}. Ingin bertanya mengenai...`;
+        Linking.openURL(`whatsapp://send?phone=${adminPhone}&text=${encodeURIComponent(message)}`)
+          .catch(() => Alert.alert("Error", "WhatsApp tidak terpasang di perangkat Anda."));
+        break;
+      case 'call':
+        Linking.openURL(`tel:${adminPhone}`);
+        break;
+      case 'email':
+        Linking.openURL(`mailto:${adminEmail}?subject=Bantuan Aplikasi KosKu&body=Halo Admin...`);
+        break;
+    }
+    setIsContactModalVisible(false);
+  };
+
   const handleAction = (actionName: string) => {
-    Alert.alert("Fitur", `Fitur ${actionName} sedang dalam pengembangan.`);
+    if (actionName === 'Edit Profile') {
+      handleOpenEdit();
+    } else if (actionName === 'Contact Admin') {
+      setIsContactModalVisible(true);
+    } else {
+      Alert.alert("Fitur", `Fitur ${actionName} sedang dalam pengembangan.`);
+    }
   };
 
   const handleLogout = () => {
@@ -79,6 +175,147 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface pt-4" edges={['top', 'left', 'right']}>
+      
+      {/* Support Center Sheet (Modal) */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={isContactModalVisible}
+        onRequestClose={() => setIsContactModalVisible(false)}
+      >
+        <TouchableOpacity 
+          activeOpacity={1} 
+          onPress={() => setIsContactModalVisible(false)}
+          className="flex-1 justify-end bg-black/50"
+        >
+          <View className="bg-surface rounded-t-3xl p-6 shadow-xl">
+            <View className="w-12 h-1.5 bg-surface-container-high rounded-full self-center mb-6" />
+            
+            <Text className="text-2xl font-black text-on-surface mb-2">Hubungi Admin</Text>
+            <Text className="text-on-surface-variant text-base mb-8">Pilih cara yang paling nyaman untuk Anda menghubungi tim bantuan kami.</Text>
+
+            <View className="space-y-4">
+              <TouchableOpacity 
+                onPress={() => contactAdmin('whatsapp')}
+                className="flex-row items-center bg-[#e7f3ef] p-4 rounded-2xl border border-[#25d366]/20 active:scale-[0.98] mb-4"
+              >
+                <View className="w-12 h-12 bg-[#25d366] rounded-full items-center justify-center mr-4">
+                  <MaterialIcons name="chat" size={24} color="#ffffff" />
+                </View>
+                <View className="flex-1">
+                  <Text className="font-bold text-lg text-[#075e54]">WhatsApp Chat</Text>
+                  <Text className="text-[#075e54]/70 text-sm">Respon cepat via pesan teks</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={24} color="#075e54" />
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                onPress={() => contactAdmin('call')}
+                className="flex-row items-center bg-[#e8eaf6] p-4 rounded-2xl border border-[#3f51b5]/20 active:scale-[0.98] mb-4"
+              >
+                <View className="w-12 h-12 bg-[#3f51b5] rounded-full items-center justify-center mr-4">
+                  <MaterialIcons name="call" size={24} color="#ffffff" />
+                </View>
+                <View className="flex-1">
+                  <Text className="font-bold text-lg text-[#1a237e]">Telepon Langsung</Text>
+                  <Text className="text-[#1a237e]/70 text-sm">Bicara langsung dengan admin</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={24} color="#1a237e" />
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                onPress={() => contactAdmin('email')}
+                className="flex-row items-center bg-surface-container-low p-4 rounded-2xl border border-outline-variant/30 active:scale-[0.98]"
+              >
+                <View className="w-12 h-12 bg-surface-container-high rounded-full items-center justify-center mr-4">
+                  <MaterialIcons name="email" size={24} color="#464555" />
+                </View>
+                <View className="flex-1">
+                  <Text className="font-bold text-lg text-on-surface">Kirim Email</Text>
+                  <Text className="text-on-surface-variant text-sm">Untuk laporan formal/keluhan</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={24} color="#777587" />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity 
+              onPress={() => setIsContactModalVisible(false)}
+              className="mt-8 py-4 items-center justify-center"
+            >
+              <Text className="text-primary font-bold text-lg">Batal</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Edit Profile Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isEditModalVisible}
+        onRequestClose={() => setIsEditModalVisible(false)}
+      >
+        <View className="flex-1 justify-end bg-black/50">
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            className="bg-surface rounded-t-3xl p-6 shadow-xl"
+          >
+            <View className="flex-row justify-between items-center mb-6">
+              <Text className="text-xl font-black text-on-surface">Edit Profile</Text>
+              <TouchableOpacity onPress={() => setIsEditModalVisible(false)}>
+                <MaterialIcons name="close" size={24} color="#777587" />
+              </TouchableOpacity>
+            </View>
+
+            <View className="space-y-5 mb-8">
+              {/* Field Nama */}
+              <View>
+                <Text className="text-xs font-bold text-primary uppercase tracking-widest mb-2 ml-1">Nama Lengkap</Text>
+                <View className="flex-row items-center bg-surface-container-highest rounded-2xl px-4 h-[56px] border border-outline-variant/20">
+                  <MaterialIcons name="person" size={22} color="#3525cd" />
+                  <TextInput
+                    className="flex-1 ml-3 text-on-surface font-semibold text-base"
+                    placeholder="Masukkan nama lengkap"
+                    placeholderTextColor="#777587"
+                    value={editData.nama}
+                    onChangeText={(text) => setEditData({...editData, nama: text})}
+                  />
+                </View>
+              </View>
+
+              {/* Field No HP */}
+              <View>
+                <Text className="text-xs font-bold text-primary uppercase tracking-widest mb-2 ml-1">Nomor Telepon</Text>
+                <View className="flex-row items-center bg-surface-container-highest rounded-2xl px-4 h-[56px] border border-outline-variant/20">
+                  <MaterialIcons name="phone" size={22} color="#3525cd" />
+                  <TextInput
+                    className="flex-1 ml-3 text-on-surface font-semibold text-base"
+                    placeholder="Contoh: 0812..."
+                    placeholderTextColor="#777587"
+                    keyboardType="phone-pad"
+                    value={editData.noTelepon}
+                    onChangeText={(text) => setEditData({...editData, noTelepon: text})}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <TouchableOpacity 
+              onPress={handleSaveProfile}
+              disabled={isSaving}
+              className="bg-primary h-14 rounded-xl items-center justify-center shadow-lg active:scale-95"
+            >
+              {isSaving ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text className="text-white font-bold text-lg">Simpan Perubahan</Text>
+              )}
+            </TouchableOpacity>
+            
+            <View className="h-8" /> 
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
 
       {/* Top App Bar */}
       <View className="px-6 pb-4 flex-row justify-between items-center z-50">
@@ -93,7 +330,7 @@ export default function ProfileScreen() {
               <Text className="text-on-primary-container font-bold text-xs">{userInitials}</Text>
             </View>
           )}
-          <Text className="text-primary font-black text-2xl tracking-tight">My Profile Gueh</Text>
+          <Text className="text-primary font-black text-2xl tracking-tight">Profile Saya</Text>
         </View>
 
         <TouchableOpacity
@@ -107,7 +344,7 @@ export default function ProfileScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }} // Space for Bottom Nav
+        contentContainerStyle={{ paddingBottom: 120 }}
         className="px-6 mt-8"
       >
 
@@ -124,17 +361,21 @@ export default function ProfileScreen() {
                 <Text className="text-on-primary-container font-black text-4xl">{userInitials}</Text>
               </View>
             )}
-            <TouchableOpacity onPress={() => handleAction('Ubah Foto')} className="absolute bottom-0 right-0 bg-primary w-10 h-10 rounded-full flex items-center justify-center shadow-lg active:scale-95">
-              <MaterialIcons name="edit" size={20} color="#ffffff" />
-            </TouchableOpacity>
           </View>
-          <Text className="font-black text-3xl text-on-surface mb-2">{profile.nama}</Text>
-          <Text className="text-on-surface-variant text-lg">{profile.email}</Text>
+          <Text className="font-black text-3xl text-on-surface mb-2 text-center">{profile.nama}</Text>
+          <View className="items-center space-y-1">
+            <Text className="text-on-surface-variant text-lg">{profile.email}</Text>
+            {profile.noTelepon ? (
+              <View className="flex-row items-center gap-1.5">
+                <MaterialIcons name="phone" size={16} color="#777587" />
+                <Text className="text-on-surface-variant text-base font-medium">{profile.noTelepon}</Text>
+              </View>
+            ) : null}
+          </View>
         </View>
 
         {/* Settings List */}
         <View className="bg-surface-container-lowest rounded-2xl p-2 mb-8 shadow-sm">
-
           <TouchableOpacity onPress={() => handleAction('Edit Profile')} className="flex-row items-center justify-between p-4 rounded-xl active:bg-surface-container-low mb-1">
             <View className="flex-row items-center gap-4">
               <View className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center">
@@ -145,26 +386,15 @@ export default function ProfileScreen() {
             <MaterialIcons name="chevron-right" size={24} color="#777587" />
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => handleAction('Contact Admin')} className="flex-row items-center justify-between p-4 rounded-xl active:bg-surface-container-low mb-1">
+          <TouchableOpacity onPress={() => handleAction('Contact Admin')} className="flex-row items-center justify-between p-4 rounded-xl active:bg-surface-container-low">
             <View className="flex-row items-center gap-4">
               <View className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center">
                 <MaterialIcons name="support-agent" size={22} color="#3525cd" />
               </View>
-              <Text className="font-medium text-lg text-on-surface">Contact Admin</Text>
+              <Text className="font-medium text-lg text-on-surface">Hubungi Admin</Text>
             </View>
             <MaterialIcons name="chevron-right" size={24} color="#777587" />
           </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => handleAction('Bantuan')} className="flex-row items-center justify-between p-4 rounded-xl active:bg-surface-container-low">
-            <View className="flex-row items-center gap-4">
-              <View className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center">
-                <MaterialIcons name="help" size={22} color="#3525cd" />
-              </View>
-              <Text className="font-medium text-lg text-on-surface">Help</Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={24} color="#777587" />
-          </TouchableOpacity>
-
         </View>
 
         {/* Logout Button */}
