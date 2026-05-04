@@ -66,7 +66,7 @@ export default function AuthenticatedCatalogScreen() {
       });
       const text = await response.text();
       if (!text || text.trim() === "") return;
-      
+
       const json = JSON.parse(text);
       console.log("Data Cabang:", json);
       if (json.data) setBranches(json.data);
@@ -96,7 +96,14 @@ export default function AuthenticatedCatalogScreen() {
   };
 
   const handleBranchSelect = (branch: any) => {
-    setSelectedBranch(branch);
+    const branchId = branch.idCabang || branch.id;
+    const currentSelectedId = selectedBranch ? (selectedBranch.idCabang || selectedBranch.id) : null;
+
+    if (branchId === currentSelectedId) {
+      setSelectedBranch(null);
+    } else {
+      setSelectedBranch(branch);
+    }
   };
 
   // Map Kamar API to display format
@@ -104,7 +111,7 @@ export default function AuthenticatedCatalogScreen() {
     // Ambil harga dari properti yang mungkin tersedia
     const rawHarga = k.harga ?? k.hargaSewa ?? 0;
     const numHarga = Number(rawHarga);
-    
+
     return {
       id: (k.id || k.idKamar)?.toString(),
       name: `Kamar ${k.nomorKamar || ''}`,
@@ -120,7 +127,7 @@ export default function AuthenticatedCatalogScreen() {
   };
 
   const filteredKamar = kamar.filter(item => {
-    // 1. Branch Filter (Client-side fallback)
+    // 1. Branch Filter
     if (selectedBranch) {
       const selectedId = selectedBranch.idCabang || selectedBranch.id;
       const itemId = item.cabang?.idCabang || item.cabang?.id;
@@ -130,14 +137,14 @@ export default function AuthenticatedCatalogScreen() {
     // 2. Search Filter
     const matchesSearch = item.nomorKamar?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (item.fasilitas && item.fasilitas.toLowerCase().includes(searchQuery.toLowerCase()));
-
     if (!matchesSearch) return false;
 
     // 3. Category Filter
     if (activeFilter === 'Semua') return true;
+    if (activeFilter === 'AC') return item.fasilitas && /\bAC\b/i.test(item.fasilitas);
+    if (activeFilter === 'KM Dalam') return item.fasilitas && item.fasilitas.toUpperCase().includes('KM DALAM');
     if (activeFilter === 'Tersedia') return (item.status || item.statusKetersediaan)?.toUpperCase() === 'TERSEDIA';
     if (activeFilter === '< 1jt') return (item.harga || item.hargaSewa || 0) < 1000000;
-    if (activeFilter === 'AC') return item.fasilitas && item.fasilitas.toUpperCase().includes('AC');
 
     return true;
   });
@@ -218,36 +225,36 @@ export default function AuthenticatedCatalogScreen() {
               {branches.map((branch, index) => {
                 const bId = branch.idCabang || branch.id;
                 const isSelected = selectedBranch && (selectedBranch.idCabang || selectedBranch.id) === bId;
-                
-                const availableCount = kamar.filter(k => 
-                  (k.cabang?.idCabang === bId || k.cabang?.id === bId) && 
+
+                const availableCount = kamar.filter(k =>
+                  (k.cabang?.idCabang === bId || k.cabang?.id === bId) &&
                   (k.status || k.statusKetersediaan) === 'TERSEDIA'
                 ).length;
 
                 return (
-                <TouchableOpacity
-                  key={bId || index}
-                  onPress={() => handleBranchSelect(branch)}
-                  className={`w-40 bg-surface-container-low rounded-2xl overflow-hidden border ${isSelected ? 'border-primary' : 'border-outline-variant/10'}`}
-                >
-                  <View className="h-24 bg-surface-container-high relative">
-                    <Image
-                      source={{ uri: branch.foto || MOCK_IMAGES[index % MOCK_IMAGES.length] }}
-                      className="w-full h-full"
-                    />
-                    <View className="absolute inset-0 bg-black/10" />
-                    <View className="absolute top-2 left-2 px-2 py-1 bg-error-container rounded-full flex-row items-center">
-                      <Text className="text-on-error-container text-[10px] font-bold">Sisa {availableCount} Kamar</Text>
+                  <TouchableOpacity
+                    key={bId || index}
+                    onPress={() => handleBranchSelect(branch)}
+                    className={`w-40 bg-surface-container-low rounded-2xl overflow-hidden border ${isSelected ? 'border-primary' : 'border-outline-variant/10'}`}
+                  >
+                    <View className="h-24 bg-surface-container-high relative">
+                      <Image
+                        source={{ uri: branch.foto || MOCK_IMAGES[index % MOCK_IMAGES.length] }}
+                        className="w-full h-full"
+                      />
+                      <View className="absolute inset-0 bg-black/10" />
+                      <View className="absolute top-2 left-2 px-2 py-1 bg-error-container rounded-full flex-row items-center">
+                        <Text className="text-on-error-container text-[10px] font-bold">Sisa {availableCount} Kamar</Text>
+                      </View>
                     </View>
-                  </View>
-                  <View className="p-3">
-                    <Text className="font-bold text-on-surface text-sm" numberOfLines={1}>{branch.namaCabang}</Text>
-                    <View className="flex-row items-center gap-1 mt-1">
-                      <MaterialIcons name="location-on" size={12} color="#777587" />
-                      <Text className="text-[10px] text-outline flex-1" numberOfLines={1}>{branch.alamat}</Text>
+                    <View className="p-3">
+                      <Text className="font-bold text-on-surface text-sm" numberOfLines={1}>{branch.namaCabang}</Text>
+                      <View className="flex-row items-center gap-1 mt-1">
+                        <MaterialIcons name="location-on" size={12} color="#777587" />
+                        <Text className="text-[10px] text-outline flex-1" numberOfLines={1}>{branch.alamat}</Text>
+                      </View>
                     </View>
-                  </View>
-                </TouchableOpacity>
+                  </TouchableOpacity>
                 );
               })}
             </ScrollView>
@@ -282,13 +289,6 @@ export default function AuthenticatedCatalogScreen() {
             >
               <Text className={`font-medium text-sm ${activeFilter === 'AC' ? 'text-on-tertiary-container' : 'text-on-surface-variant'}`}>AC</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setActiveFilter('KM Dalam')}
-              className={`px-5 py-2.5 rounded-full shadow-sm ${activeFilter === 'KM Dalam' ? 'bg-tertiary-container' : 'bg-surface-container-lowest border border-outline-variant/20'}`}
-            >
-              <Text className={`font-medium text-sm ${activeFilter === 'KM Dalam' ? 'text-on-tertiary-container' : 'text-on-surface-variant'}`}>KM Dalam</Text>
-            </TouchableOpacity>
           </ScrollView>
         </View>
 
@@ -309,10 +309,17 @@ export default function AuthenticatedCatalogScreen() {
                       <TouchableOpacity
                         key={item.id}
                         onPress={() => router.push(`/kamar/${item.id}` as any)}
-                        className="bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm flex-row h-[160px]"
+                        className={`bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm flex-row h-[160px] ${!item.available ? 'opacity-80' : ''}`}
                       >
                         <View className="w-[140px] h-full relative">
                           <Image source={{ uri: item.image }} className="w-full h-full" resizeMode="cover" />
+                          {!item.available && (
+                            <View className="absolute inset-0 bg-black/50 w-full h-full flex items-center justify-center">
+                              <View className="bg-black/80 px-4 py-2 rounded-md border border-white/20">
+                                <Text className="text-white font-bold text-xs uppercase tracking-widest">Penuh</Text>
+                              </View>
+                            </View>
+                          )}
 
                           {/* Badge Rating */}
                           <View className="absolute top-2 left-2 px-2 py-1 bg-white/90 rounded-full flex-row items-center gap-1">
@@ -323,7 +330,12 @@ export default function AuthenticatedCatalogScreen() {
 
                         <View className="flex-1 p-3 justify-between">
                           <View>
-                            <Text className="font-bold text-base text-on-surface mb-1" numberOfLines={2}>
+                            <View className="flex-row justify-between items-start mb-1">
+                              <View className="px-1.5 py-0.5 bg-surface-container rounded">
+                                <Text className="text-[8px] font-bold text-on-surface-variant uppercase">{item.type}</Text>
+                              </View>
+                            </View>
+                            <Text className="font-bold text-base text-on-surface mb-1" numberOfLines={1}>
                               {item.name}
                             </Text>
                             <Text className="text-xs text-on-surface-variant flex-row items-center mb-2">
@@ -338,13 +350,9 @@ export default function AuthenticatedCatalogScreen() {
                             </View>
                           </View>
 
-                          <View className="flex-row justify-between items-end">
-                            <View>
-                              <Text className="text-primary font-bold text-lg">{item.price}<Text className="text-[10px] font-normal text-on-surface-variant">/bln</Text></Text>
-                            </View>
-                            <View className="w-8 h-8 rounded-full bg-surface-container-high items-center justify-center">
-                              <MaterialIcons name="arrow-forward" size={16} color="#464555" />
-                            </View>
+                          <View className="flex-row justify-between items-center mt-2 pt-2 border-t border-surface-container-high">
+                            <Text className="text-on-surface font-bold text-sm">Rp {(item.originalHarga).toLocaleString('id-ID')}<Text className="text-[9px] font-normal text-on-surface-variant">/bln</Text></Text>
+                            <MaterialIcons name="bookmark-border" size={18} color="#777587" />
                           </View>
                         </View>
                       </TouchableOpacity>
@@ -363,10 +371,17 @@ export default function AuthenticatedCatalogScreen() {
                     <TouchableOpacity
                       key={item.id}
                       onPress={() => router.push(`/kamar/${item.id}` as any)}
-                      className="w-[48%] bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm mb-4 border border-outline-variant/20"
+                      className={`w-[48%] bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm mb-4 border border-outline-variant/20 ${!item.available ? 'opacity-80' : ''}`}
                     >
                       <View className="h-32 relative">
                         <Image source={{ uri: item.image }} className="w-full h-full" resizeMode="cover" />
+                        {!item.available && (
+                          <View className="absolute inset-0 bg-black/50 w-full h-full flex items-center justify-center">
+                            <View className="bg-black/80 px-4 py-2 rounded-md border border-white/20">
+                              <Text className="text-white font-bold text-xs uppercase tracking-widest">Penuh</Text>
+                            </View>
+                          </View>
+                        )}
                       </View>
                       <View className="p-3">
                         <View className="flex-row justify-between items-start mb-2">
