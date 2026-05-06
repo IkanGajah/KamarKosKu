@@ -132,7 +132,9 @@ export default function GuestHomeScreen() {
 
     // 2. Search Filter
     const matchesSearch = item.nomorKamar?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.fasilitas && item.fasilitas.toLowerCase().includes(searchQuery.toLowerCase()));
+      (item.fasilitas && item.fasilitas.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (item.cabang?.namaCabang && item.cabang.namaCabang.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (item.cabang?.alamat && item.cabang.alamat.toLowerCase().includes(searchQuery.toLowerCase()));
 
     if (!matchesSearch) return false;
 
@@ -144,6 +146,11 @@ export default function GuestHomeScreen() {
 
     return true;
   });
+
+  const filteredBranches = branches.filter(branch =>
+    branch.namaCabang?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    branch.alamat?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const displayData = filteredKamar.map((k, index) => getDisplayData(k, index));
   const REKOMENDASI = displayData.slice(0, 2);
@@ -223,7 +230,7 @@ export default function GuestHomeScreen() {
               </View>
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingRight: 20 }}>
-                {branches.map((branch, index) => {
+                {filteredBranches.map((branch, index) => {
                   const bId = branch.idCabang || branch.id;
                   const isSelected = selectedBranch && (selectedBranch.idCabang || selectedBranch.id) === bId;
 
@@ -349,7 +356,6 @@ export default function GuestHomeScreen() {
 
                           <View className="flex-row justify-between items-center mt-2 pt-2 border-t border-surface-container-high">
                             <Text className="text-on-surface font-bold text-sm">Rp {(item.originalHarga).toLocaleString('id-ID')}<Text className="text-[9px] font-normal text-on-surface-variant">/bln</Text></Text>
-                            <MaterialIcons name="bookmark-border" size={18} color="#777587" />
                           </View>
                         </View>
                       </TouchableOpacity>
@@ -398,7 +404,6 @@ export default function GuestHomeScreen() {
 
                         <View className="flex-row justify-between items-center">
                           <Text className="text-on-surface font-bold text-sm">Rp {(item.originalHarga).toLocaleString('id-ID')}<Text className="text-[9px] font-normal text-on-surface-variant">/bln</Text></Text>
-                          <MaterialIcons name="bookmark-border" size={16} color="#777587" />
                         </View>
                       </View>
                     </TouchableOpacity>

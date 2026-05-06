@@ -1,235 +1,333 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  ScrollView, 
-  TouchableOpacity, 
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
   Image,
-  Switch
+  Modal,
+  TextInput,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { globalState } from '../_globalState';
+import { API_BASE_URL } from '@/constants/config';
 
 export default function OwnerProfileScreen() {
-  const [is2FAEnabled, setIs2FAEnabled] = useState(true);
+  const router = useRouter();
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
+  const [profileData, setProfileData] = useState({
+    nama: globalState.namaLengkap || '',
+    email: globalState.email || '',
+    noTelepon: globalState.noTelepon || '',
+    foto: globalState.foto || ''
+  });
+  const [editData, setEditData] = useState({
+    nama: '',
+    noTelepon: ''
+  });
+
+  const fetchProfile = async () => {
+    try {
+      if (!globalState.token) return null;
+      const res = await fetch(`${API_BASE_URL}/users/profile`, {
+        headers: { 'Authorization': `Bearer ${globalState.token}` }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const p = json.data;
+
+        const newName = p.nama || globalState.namaLengkap || (globalState.email ? globalState.email.split('@')[0] : 'Owner');
+        const newPhone = p.noTelepon || globalState.noTelepon || '';
+        const newFoto = p.foto || globalState.foto || '';
+
+        globalState.namaLengkap = newName;
+        globalState.noTelepon = newPhone;
+        globalState.foto = newFoto;
+
+        const newProfile = {
+          nama: newName,
+          email: p.email || globalState.email || '',
+          noTelepon: newPhone,
+          foto: newFoto
+        };
+
+        setProfileData(newProfile);
+        setEditData({
+          nama: newName,
+          noTelepon: newPhone
+        });
+        return newProfile;
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    return null;
+  };
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const handleOpenEdit = async () => {
+    setIsFetching(true);
+    const freshProfile = await fetchProfile();
+    const current = freshProfile || profileData;
+    setEditData({
+      nama: current.nama || '',
+      noTelepon: current.noTelepon || ''
+    });
+    setIsFetching(false);
+    setIsEditModalVisible(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editData.nama || !editData.noTelepon) {
+      Alert.alert("Error", "Nama dan Nomor Telepon tidak boleh kosong.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/users/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${globalState.token}`
+        },
+        body: JSON.stringify({
+          nama: editData.nama,
+          noTelepon: editData.noTelepon
+        })
+      });
+
+      if (res.ok) {
+        await fetchProfile();
+        Alert.alert("Sukses", "Profil berhasil diperbarui.");
+        setIsEditModalVisible(false);
+      } else {
+        const json = await res.json();
+        Alert.alert("Gagal", json.message || "Gagal memperbarui profil.");
+      }
+    } catch (e) {
+      console.error(e);
+      Alert.alert("Error", "Gagal menghubungi server.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Konfirmasi Logout",
+      "Apakah Anda yakin ingin keluar?",
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: () => {
+            globalState.token = '';
+            globalState.email = '';
+            globalState.role = '';
+            globalState.namaLengkap = '';
+            globalState.foto = '';
+            globalState.noTelepon = '';
+            router.replace('/login' as any);
+          }
+        }
+      ]
+    );
+  };
+
+  const userInitials = (globalState.namaLengkap || globalState.email || 'O')
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
-    <SafeAreaView className="flex-1 bg-surface pt-4" edges={['top', 'left', 'right']}>
-      
+    <SafeAreaView className="flex-1 bg-[#f8f9fe] pt-4" edges={['top', 'left', 'right']}>
+
       {/* Top App Bar */}
       <View className="px-6 pb-4 flex-row justify-between items-center z-50">
-        <View className="flex-row items-center gap-2">
-          <Text className="font-black text-xl text-indigo-700 tracking-tight">KosKu</Text>
-          <Text className="font-black text-lg text-on-surface tracking-tight">The Estate Owner</Text>
+        <View className="flex-row items-center gap-4">
+          {profileData.foto ? (
+            <Image
+              source={{ uri: profileData.foto }}
+              className="w-10 h-10 rounded-full object-cover"
+            />
+          ) : (
+            <View className="w-10 h-10 rounded-full bg-primary items-center justify-center border border-outline-variant/30">
+              <Text className="text-white font-bold text-xs">{userInitials}</Text>
+            </View>
+          )}
+          <Text className="text-black font-black text-2xl tracking-tight">Profile Saya</Text>
         </View>
-        <TouchableOpacity className="w-10 h-10 rounded-full overflow-hidden active:scale-95 bg-surface-container-highest">
-          <Image 
-            source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCBwMq9JRmYakgO8zcYuxTMopLW1J-rcTRfTOj0W0sJfLWiKcN4hJ2wO9EgNlWlfLs4nAp3KXZBruqhX4uejh4hIujqS4q2AFIQRG3Hp3R4boOoyjw80chN8XH7JDq2Buvtg7yY-s-vjFSBx3sbTFkPcduzvOeE6o1uTsJfC-jxlSE4TdFlj2uevzk7YtlZovwFw7A_jT3Y79WXcOSuTeE5qZBGPDjnVUsdy5OByEEMzaVSzJ1Obp8_6g4gK_7TIrrhyG8HGmYcZzs' }}
-            className="w-full h-full object-cover"
-          />
+
+        <TouchableOpacity
+          onPress={() => router.push('/notifications' as any)}
+          className="hover:opacity-80 active:scale-95"
+        >
+          <MaterialIcons name="notifications" size={28} color="#464555" />
+          <View className="absolute top-0 right-0 w-3 h-3 bg-[#ba1a1a] rounded-full border-2 border-[#f8f9fe]" />
         </TouchableOpacity>
       </View>
-      <View className="bg-surface-container-high/50 h-[1px] w-full" />
 
-      <ScrollView 
+      <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }} // Space for Bottom Nav
-        className="px-6 flex-1 mt-4"
+        contentContainerStyle={{ paddingBottom: 120 }}
+        className="px-6 mt-8"
       >
-        
-        {/* Profile Header Bento */}
-        <View className="flex-col gap-6 mb-8">
-          
-          {/* Identity Card */}
-          <View className="bg-surface-container-lowest rounded-xl p-8 shadow-sm border border-outline-variant/20 relative overflow-hidden items-center text-center">
-            {/* Background Accent */}
-            <LinearGradient
-              colors={['rgba(79, 70, 229, 0.1)', 'transparent']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              className="absolute inset-0"
-            />
-            
-            <TouchableOpacity className="absolute top-4 right-4 w-10 h-10 items-center justify-center rounded-full bg-surface-container-low active:bg-surface-container z-20">
-              <MaterialIcons name="edit" size={20} color="#464555" />
-            </TouchableOpacity>
 
-            <View className="w-28 h-28 rounded-full overflow-hidden border-4 border-surface-container-lowest shadow-sm mb-4">
-              <Image 
-                source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD48g8MkeYJ9BfOCPURzFiaLhlmBflJsuYUk6OY8nBmuTD0Zf6BZ1nLyTVJI02LZBdxcEeSF0M93Pnf-Cxeh4PBdfGJfoCcGA8KpbHx787rYxKAKJZWf9FwHrbhEwnLejqf5YVBQgyDFYdReE-fRSM8WKYvRhtnPga96f2z7u7hA0ZRTf75PnQGs_A1OndQOph2Eu_R4LDfQg4WBPFygHVMB3wZDlghSuRO8vuvnKOWQvOnHAlS1HLJihENgjY5N4xHzgp_iibivZE' }}
-                className="w-full h-full object-cover"
+        {/* Profile Header Section */}
+        <View className="items-center mb-12">
+          <View className="relative mb-6">
+            {profileData.foto ? (
+              <Image
+                source={{ uri: profileData.foto }}
+                className="w-32 h-32 rounded-full object-cover shadow-lg border-4 border-white"
               />
-            </View>
-
-            <Text className="font-black text-[28px] text-on-surface mb-1">Richard Henderson</Text>
-            <Text className="text-[#3525cd] font-medium text-base mb-4">Property Owner</Text>
-
-            <View className="flex-col w-full gap-3 mt-2">
-              <View className="flex-row items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-surface-container-low">
-                <MaterialIcons name="mail" size={18} color="#464555" />
-                <Text className="text-sm font-medium text-on-surface-variant">richard.h@estate.com</Text>
+            ) : (
+              <View className="w-32 h-32 rounded-full bg-primary items-center justify-center shadow-lg border-4 border-white">
+                <Text className="text-white font-black text-4xl">{userInitials}</Text>
               </View>
-              <View className="flex-row items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-surface-container-low">
-                <MaterialIcons name="phone" size={18} color="#464555" />
-                <Text className="text-sm font-medium text-on-surface-variant">+1 (555) 123-4567</Text>
+            )}
+          </View>
+          <Text className="font-black text-3xl text-on-surface mb-2 text-center">{profileData.nama}</Text>
+          <View className="items-center space-y-1">
+            <Text className="text-on-surface-variant text-lg">{profileData.email}</Text>
+            {profileData.noTelepon ? (
+              <View className="flex-row items-center gap-1.5 mt-2">
+                <MaterialIcons name="phone" size={16} color="#777587" />
+                <Text className="text-on-surface-variant text-base font-medium">{profileData.noTelepon}</Text>
               </View>
-            </View>
+            ) : null}
           </View>
-
-          {/* Quick Stats */}
-          <View className="rounded-xl overflow-hidden shadow-sm">
-            <LinearGradient
-              colors={['#4f46e5', '#3525cd']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              className="p-8 items-start relative"
-            >
-              <View className="absolute top-[-30px] right-[-30px] w-40 h-40 bg-[#4f46e5] rounded-full opacity-50" />
-              
-              <Text className="text-xs font-semibold text-[#c3c0ff] uppercase tracking-wider mb-2">Active Portfolio</Text>
-              <Text className="font-black text-[40px] text-white leading-tight">12</Text>
-              <Text className="text-sm text-[#c3c0ff] mt-1">Properties Managed</Text>
-            </LinearGradient>
-          </View>
-
         </View>
 
-        {/* Settings Grid */}
-        <View className="flex-col gap-8">
-          
-          {/* Security Settings */}
-          <View className="bg-surface-container-low rounded-xl p-6">
-            <View className="flex-row items-center gap-2 mb-6">
-              <MaterialIcons name="security" size={24} color="#3525cd" />
-              <Text className="font-bold text-[22px] text-on-surface">Security Settings</Text>
-            </View>
-
-            <View className="flex-col gap-4">
-              
-              {/* Password */}
-              <TouchableOpacity className="bg-surface-container-lowest rounded-xl p-4 flex-row items-center justify-between border border-outline-variant/15 active:scale-95 shadow-sm">
-                <View className="flex-row items-center gap-4">
-                  <View className="w-10 h-10 rounded-full bg-surface-container-low items-center justify-center">
-                    <MaterialIcons name="password" size={20} color="#464555" />
-                  </View>
-                  <View>
-                    <Text className="font-semibold text-[15px] text-on-surface">Change Password</Text>
-                    <Text className="text-sm text-on-surface-variant">Last updated 3 months ago</Text>
-                  </View>
-                </View>
-                <MaterialIcons name="chevron-right" size={24} color="#3525cd" />
-              </TouchableOpacity>
-
-              {/* 2FA */}
-              <View className="bg-surface-container-lowest rounded-xl p-4 flex-row items-center justify-between border border-outline-variant/15 shadow-sm">
-                <View className="flex-row items-center gap-4">
-                  <View className="w-10 h-10 rounded-full bg-surface-container-low items-center justify-center">
-                    <MaterialIcons name="phonelink-lock" size={20} color="#464555" />
-                  </View>
-                  <View>
-                    <Text className="font-semibold text-[15px] text-on-surface">Two-Factor Authentication</Text>
-                    <Text className="text-sm text-on-surface-variant">Currently {is2FAEnabled ? 'enabled' : 'disabled'}</Text>
-                  </View>
-                </View>
-                <Switch 
-                  value={is2FAEnabled} 
-                  onValueChange={setIs2FAEnabled}
-                  trackColor={{ false: '#e0e3e5', true: '#4f46e5' }}
-                  thumbColor="#ffffff"
-                />
+        {/* Settings List */}
+        <View className="bg-white rounded-2xl p-2 mb-8 shadow-sm">
+          <TouchableOpacity 
+            onPress={handleOpenEdit} 
+            disabled={isFetching || isSaving}
+            className="flex-row items-center justify-between p-4 rounded-xl active:bg-surface-container-low border-b border-surface-variant/10"
+          >
+            <View className="flex-row items-center gap-4">
+              <View className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center">
+                {isFetching ? (
+                  <ActivityIndicator size="small" color="#3525cd" />
+                ) : (
+                  <MaterialIcons name="person" size={22} color="#3525cd" />
+                )}
               </View>
-
-              {/* Sessions */}
-              <TouchableOpacity className="bg-surface-container-lowest rounded-xl p-4 flex-row items-center justify-between border border-outline-variant/15 active:scale-95 shadow-sm">
-                <View className="flex-row items-center gap-4">
-                  <View className="w-10 h-10 rounded-full bg-surface-container-low items-center justify-center">
-                    <MaterialIcons name="devices" size={20} color="#464555" />
-                  </View>
-                  <View>
-                    <Text className="font-semibold text-[15px] text-on-surface">Active Sessions</Text>
-                    <Text className="text-sm text-on-surface-variant">Manage logged in devices</Text>
-                  </View>
-                </View>
-                <MaterialIcons name="chevron-right" size={24} color="#3525cd" />
-              </TouchableOpacity>
-
+              <Text className="font-medium text-lg text-on-surface">Edit Profile</Text>
             </View>
-          </View>
+            <MaterialIcons name="chevron-right" size={24} color="#777587" />
+          </TouchableOpacity>
 
-          {/* Subscription & Billing */}
-          <View className="bg-surface-container-low rounded-xl p-6">
-            <View className="flex-row items-center gap-2 mb-6">
-              <MaterialIcons name="credit-card" size={24} color="#3525cd" />
-              <Text className="font-bold text-[22px] text-on-surface">KosKu Subscription</Text>
+          <TouchableOpacity 
+            onPress={() => router.push('/(owner)/admins' as any)}
+            className="flex-row items-center justify-between p-4 rounded-xl active:bg-surface-container-low"
+          >
+            <View className="flex-row items-center gap-4">
+              <View className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center">
+                <MaterialIcons name="admin-panel-settings" size={22} color="#3525cd" />
+              </View>
+              <Text className="font-medium text-lg text-on-surface">Manajemen Admin</Text>
             </View>
-
-            {/* Active Plan Card */}
-            <View className="bg-surface-container-lowest rounded-xl p-6 border border-[#3525cd]/20 relative overflow-hidden mb-4 shadow-sm">
-              <View className="absolute top-[-30px] right-[-30px] w-24 h-24 bg-[#6df5e1] rounded-full opacity-20" />
-              
-              <View className="flex-row justify-between items-start mb-6">
-                <View>
-                  <View className="px-3 py-1 bg-[#4f46e5]/10 rounded-full self-start mb-2">
-                    <Text className="text-[#3525cd] text-[10px] font-bold uppercase tracking-wider">Current Plan</Text>
-                  </View>
-                  <Text className="font-bold text-[18px] text-on-surface">Estate Enterprise</Text>
-                </View>
-                <View className="items-end">
-                  <Text className="font-extrabold text-[20px] text-on-surface tracking-tight">$299<Text className="text-sm font-normal text-on-surface-variant">/mo</Text></Text>
-                </View>
-              </View>
-
-              <View className="flex-col gap-3 mb-6">
-                <View className="flex-row items-center gap-3">
-                  <MaterialIcons name="check-circle" size={20} color="#006b5f" />
-                  <Text className="text-sm text-on-surface">Up to 50 properties</Text>
-                </View>
-                <View className="flex-row items-center gap-3">
-                  <MaterialIcons name="check-circle" size={20} color="#006b5f" />
-                  <Text className="text-sm text-on-surface">Advanced financial reporting</Text>
-                </View>
-                <View className="flex-row items-center gap-3">
-                  <MaterialIcons name="check-circle" size={20} color="#006b5f" />
-                  <Text className="text-sm text-on-surface">Priority concierge support</Text>
-                </View>
-              </View>
-
-              <View className="pt-4 border-t border-surface-container-highest flex-row items-center justify-between">
-                <Text className="text-sm text-on-surface-variant">Next billing: <Text className="font-bold text-on-surface">Oct 15, 2023</Text></Text>
-                <TouchableOpacity>
-                  <Text className="text-[#3525cd] font-semibold text-sm">Manage Plan</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Payment Method */}
-            <View className="bg-surface-container-lowest rounded-xl p-4 flex-row items-center justify-between border border-outline-variant/15 shadow-sm">
-              <View className="flex-row items-center gap-4">
-                <View className="w-12 h-8 bg-surface-container-highest rounded border border-outline-variant/30 items-center justify-center">
-                  <Text className="font-bold text-[10px] text-on-surface-variant">VISA</Text>
-                </View>
-                <View>
-                  <Text className="font-semibold text-[15px] text-on-surface">•••• •••• •••• 4242</Text>
-                  <Text className="text-sm text-on-surface-variant">Expires 12/25</Text>
-                </View>
-              </View>
-              <TouchableOpacity className="w-8 h-8 items-center justify-center">
-                <MaterialIcons name="edit" size={20} color="#3525cd" />
-              </TouchableOpacity>
-            </View>
-
-          </View>
-
+            <MaterialIcons name="chevron-right" size={24} color="#777587" />
+          </TouchableOpacity>
         </View>
 
-        {/* Danger Zone */}
-        <View className="mt-12 mb-4 flex-row justify-center">
-          <TouchableOpacity className="h-[52px] px-8 rounded-xl bg-[#ffdad6] flex-row items-center gap-2 active:bg-[#ffdad6]/80 shadow-sm">
-            <MaterialIcons name="logout" size={20} color="#93000a" />
-            <Text className="text-[#93000a] font-semibold">Sign Out of KosKu</Text>
+        {/* Logout Button */}
+        <View className="flex items-center">
+          <TouchableOpacity
+            onPress={handleLogout}
+            className="w-full py-4 bg-[#ffdad6] rounded-xl active:scale-95 flex-row items-center justify-center gap-2"
+          >
+            <MaterialIcons name="logout" size={22} color="#ba1a1a" />
+            <Text className="font-medium text-lg text-[#ba1a1a]">Logout</Text>
           </TouchableOpacity>
         </View>
 
       </ScrollView>
+
+      {/* Edit Profile Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isEditModalVisible}
+        onRequestClose={() => setIsEditModalVisible(false)}
+      >
+        <View className="flex-1 justify-end bg-black/50">
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            className="bg-white rounded-t-[40px] p-8 shadow-xl"
+          >
+            <View className="flex-row justify-between items-center mb-8">
+              <Text className="text-2xl font-black text-on-surface">Edit Profile</Text>
+              <TouchableOpacity onPress={() => setIsEditModalVisible(false)}>
+                <MaterialIcons name="close" size={28} color="#777587" />
+              </TouchableOpacity>
+            </View>
+
+            <View className="mb-10">
+              <View className="mb-6">
+                <Text className="text-xs font-black text-primary uppercase tracking-[2px] mb-3 ml-1">Nama Lengkap</Text>
+                <View className="flex-row items-center bg-[#f0f2f9] rounded-2xl px-5 h-[64px]">
+                  <MaterialIcons name="person" size={24} color="#3525cd" />
+                  <TextInput
+                    className="flex-1 ml-4 text-on-surface font-bold text-lg"
+                    placeholderTextColor="#777587"
+                    value={editData.nama}
+                    onChangeText={(text) => setEditData({ ...editData, nama: text })}
+                  />
+                </View>
+              </View>
+
+              <View>
+                <Text className="text-xs font-black text-primary uppercase tracking-[2px] mb-3 ml-1">Nomor Telepon</Text>
+                <View className="flex-row items-center bg-[#f0f2f9] rounded-2xl px-5 h-[64px]">
+                  <MaterialIcons name="phone" size={24} color="#3525cd" />
+                  <TextInput
+                    className="flex-1 ml-4 text-on-surface font-bold text-lg"
+                    placeholderTextColor="#777587"
+                    keyboardType="phone-pad"
+                    value={editData.noTelepon}
+                    onChangeText={(text) => setEditData({ ...editData, noTelepon: text })}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              onPress={handleSaveProfile}
+              disabled={isSaving}
+              className="bg-primary h-16 rounded-2xl items-center justify-center shadow-lg active:scale-95"
+            >
+              {isSaving ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text className="text-white font-black text-xl">Simpan Perubahan</Text>
+              )}
+            </TouchableOpacity>
+
+            <View className="h-10" />
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
+

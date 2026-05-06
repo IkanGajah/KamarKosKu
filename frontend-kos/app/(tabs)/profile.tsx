@@ -330,7 +330,7 @@ export default function ProfileScreen() {
               <Text className="text-on-primary-container font-bold text-xs">{userInitials}</Text>
             </View>
           )}
-          <Text className="text-primary font-black text-2xl tracking-tight">Profile Saya</Text>
+          <Text className="text-black font-black text-2xl tracking-tight">Profile Saya</Text>
         </View>
 
         <TouchableOpacity

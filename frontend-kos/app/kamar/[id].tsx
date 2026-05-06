@@ -6,6 +6,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 
 import { Kamar } from '@/types/types';
 import { API_BASE_URL } from '@/constants/config';
+import { globalState } from '../_globalState';
 
 const { width } = Dimensions.get('window');
 
@@ -175,8 +176,8 @@ export default function DetailKamarScreen() {
             </View>
           </View>
 
-          {/* If Rented (Not Available) */}
-          {!isAvailable && (
+          {/* If Rented (Not Available) - Admin/Owner Only */}
+          {!isAvailable && (globalState.role === 'ROLE_ADMIN' || globalState.role === 'ROLE_OWNER') && (
             <View className="bg-error-container/30 p-5 rounded-2xl border border-error/10 mt-4">
               <View className="mb-3">
                 <Text className="text-xs text-on-surface-variant font-bold uppercase mb-1">Disewa Oleh</Text>

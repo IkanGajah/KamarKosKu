@@ -61,6 +61,12 @@ export default function OwnerTabLayout() {
           tabBarIcon: ({ color }) => <MaterialIcons size={24} name="person" color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="admins"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

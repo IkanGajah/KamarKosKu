@@ -1,198 +1,239 @@
-import React from 'react';
-import { 
-  View, 
-  Text, 
-  ScrollView, 
-  TouchableOpacity, 
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
   Image,
-  Platform
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { API_BASE_URL } from '@/constants/config';
+import { globalState } from '../_globalState';
+
+interface LaporanKeuangan {
+  totalPemasukan: number;
+  totalPengeluaran: number;
+}
+
+interface CabangKos {
+  idCabang: number;
+  namaCabang: string;
+  jumlahKamar: number;
+}
+
+interface Kamar {
+  id?: number;
+  idKamar: number;
+  cabang: CabangKos;
+  statusKetersediaan: string;
+  status?: string;
+}
 
 export default function OwnerOverviewScreen() {
+  const router = useRouter();
+  const [laporan, setLaporan] = useState<LaporanKeuangan>({ totalPemasukan: 0, totalPengeluaran: 0 });
+  const [branches, setBranches] = useState<CabangKos[]>([]);
+  const [kamars, setKamars] = useState<Kamar[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch Laporan
+      try {
+        const laporanRes = await fetch(`${API_BASE_URL}/laporan/keuangan`, { headers: { 'Authorization': `Bearer ${globalState.token}` } });
+        if (laporanRes.ok) {
+          const lData = await laporanRes.json();
+          if (lData.data) setLaporan(lData.data);
+        }
+      } catch (err) {
+        console.error("Error fetching laporan:", err);
+      }
+
+      // Fetch Cabang
+      try {
+        const branchRes = await fetch(`${API_BASE_URL}/cabang`, { headers: { 'Authorization': `Bearer ${globalState.token}` } });
+        if (branchRes.ok) {
+          const bData = await branchRes.json();
+          if (bData.data) setBranches(bData.data);
+        }
+      } catch (err) {
+        console.error("Error fetching cabang:", err);
+      }
+
+      // Fetch Kamar
+      try {
+        const kamarRes = await fetch(`${API_BASE_URL}/kamar`, { headers: { 'Authorization': `Bearer ${globalState.token}` } });
+        if (kamarRes.ok) {
+          const kData = await kamarRes.json();
+          if (kData.data) setKamars(kData.data);
+        }
+      } catch (err) {
+        console.error("Error fetching kamar:", err);
+      }
+
+    } catch (error) {
+      console.error("General fetch error:", error);
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchData();
+  }, []);
+
+  const formatRupiah = (number: number) => {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0
+    }).format(number);
+  };
+
+  const totalKamar = branches.reduce((sum, b) => sum + b.jumlahKamar, 0);
+  const totalOccupied = kamars.filter(k => (k.statusKetersediaan || k.status || '').toUpperCase() === 'PENUH').length;
+  const globalOccupancy = totalKamar > 0 ? Math.round((totalOccupied / totalKamar) * 100) : 0;
+
+  const branchStats = branches.map(b => {
+    const bId = b.idCabang;
+    const bKamars = kamars.filter(k => k.cabang && ((k.cabang as any).idCabang === bId || (k.cabang as any).id === bId));
+    const bOccupied = bKamars.filter(k => (k.statusKetersediaan || k.status || '').toUpperCase() === 'PENUH').length;
+    const occRate = b.jumlahKamar > 0 ? Math.round((bOccupied / b.jumlahKamar) * 100) : 0;
+    return { ...b, occRate, bOccupied };
+  });
+
+  const lowOccupancyBranches = branchStats.filter(b => b.occRate < 70 && b.jumlahKamar > 0);
+
   return (
     <SafeAreaView className="flex-1 bg-surface pt-4" edges={['top', 'left', 'right']}>
-      
+
       {/* Top App Bar */}
       <View className="px-6 pb-4 flex-row justify-between items-center z-50">
-        <Text className="font-black text-xl text-indigo-700 tracking-tight">The Estate Owner</Text>
-        <TouchableOpacity className="w-10 h-10 rounded-full overflow-hidden active:scale-95 bg-surface-container-highest">
-          <Image 
-            source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCTu0xXNmoLq8UvQ96ylhzhMBb8qjIEbLQ6y0N2sPWSHaeMZ2tHX2e277Knu9YPgud9_tI2cJPwVyljlX6491OQi4DTouEeHdHHwfsi3tQbzo5zPGl0z3i1RNZoFWq3sCKrZgMkKg-e9aHgaHKQ-iEHca93Ta6LIJZTsN66E_BcR75OU85FyIRy4Y-47sa9XAGzEnLStW3vzPpa-5xqBoeNdZLJ6eTwSNTQ_rywYzKtp9vaFxx5jxZmxLauOgLrmIHNyGyHgA9Az9g' }}
-            className="w-full h-full object-cover"
-          />
+        <Text className="font-black text-xl text-black tracking-tight">Owner</Text>
+        <TouchableOpacity
+          onPress={() => router.push('/notifications' as any)}
+          className="hover:opacity-80 active:scale-95"
+        >
+          <MaterialIcons name="notifications" size={28} color="#464555" />
+          <View className="absolute top-0 right-0 w-3 h-3 bg-[#ba1a1a] rounded-full border-2 border-surface" />
         </TouchableOpacity>
       </View>
       <View className="bg-surface-container-high/50 h-[1px] w-full" />
 
-      <ScrollView 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }} // Space for Bottom Nav
-        className="px-6 flex-1 mt-4"
-      >
-        
-        {/* Page Header */}
-        <View className="mb-6">
-          <Text className="font-black text-[28px] text-on-surface tracking-tight">Portfolio Overview</Text>
-          <Text className="text-on-surface-variant mt-2 text-base">High-level metrics across all properties.</Text>
-        </View>
+      {isLoading ? (
+        <ActivityIndicator size="large" color="#4f46e5" className="mt-10" />
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 120 }}
+          className="px-6 flex-1 mt-4"
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        >
 
-        {/* High-Level Metrics (Bento Grid) */}
-        <View className="flex-col gap-4 mb-8">
-          
-          {/* Revenue */}
-          <View className="rounded-xl overflow-hidden shadow-sm relative">
-            <LinearGradient
-              colors={['#4f46e5', '#3525cd']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              className="p-6"
-            >
-              <View className="absolute top-[-20px] right-[-20px] opacity-20">
-                <MaterialIcons name="account-balance-wallet" size={120} color="#ffffff" />
-              </View>
-              
-              <View className="flex-row justify-between items-start mb-6 relative z-10">
-                <Text className="font-semibold text-white/80 text-base">Total Revenue (MTD)</Text>
-                <MaterialIcons name="trending-up" size={24} color="#ffffff" />
-              </View>
-              <View className="relative z-10">
-                <Text className="text-[32px] font-extrabold tracking-tight text-white">$142,500</Text>
-                <Text className="text-sm mt-1 text-white/80">+8.4% vs last month</Text>
-              </View>
-            </LinearGradient>
+          {/* Page Header */}
+          <View className="mb-6">
+            <Text className="font-black text-[28px] text-on-surface tracking-tight">Ringkasan</Text>
+            <Text className="text-on-surface-variant mt-2 text-base">Ringkasan performa finansial dan operasional.</Text>
           </View>
 
-          {/* Occupancy */}
-          <View className="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/20 shadow-sm flex-col justify-between">
-            <View className="flex-row justify-between items-start mb-6">
-              <Text className="font-semibold text-on-surface-variant text-base">Global Occupancy Rate</Text>
-              <MaterialIcons name="hotel" size={24} color="#464555" />
-            </View>
-            <View>
-              <Text className="text-[32px] font-extrabold text-on-surface">88%</Text>
-              <View className="w-full bg-surface-container mt-3 h-2 rounded-full overflow-hidden">
-                <View className="bg-[#006b5f] h-full w-[88%] rounded-full" />
-              </View>
-              <Text className="text-sm mt-2 text-on-surface-variant">420 / 475 Units Filled</Text>
-            </View>
-          </View>
+          {/* High-Level Metrics (Bento Grid) */}
+          <View className="flex-col gap-4 mb-8">
 
-          {/* Maintenance */}
-          <View className="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/20 shadow-sm flex-col justify-between">
-            <View className="flex-row justify-between items-start mb-6">
-              <Text className="font-semibold text-on-surface-variant text-base">Maintenance Costs</Text>
-              <MaterialIcons name="plumbing" size={24} color="#464555" />
-            </View>
-            <View>
-              <Text className="text-[24px] font-extrabold text-on-surface">$12,450</Text>
-              <View className="flex-row items-center gap-2 mt-2">
-                <View className="bg-[#ffdad6] px-2 py-1 rounded-full flex-row items-center gap-1">
-                  <MaterialIcons name="arrow-upward" size={14} color="#93000a" />
-                  <Text className="text-xs font-semibold text-[#93000a]">12%</Text>
+            {/* Revenue */}
+            <View className="rounded-xl overflow-hidden shadow-sm relative">
+              <LinearGradient
+                colors={['#4f46e5', '#3525cd']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                className="p-6"
+              >
+                <View className="absolute top-[-20px] right-[-20px] opacity-20">
+                  <MaterialIcons name="account-balance-wallet" size={120} color="#ffffff" />
                 </View>
-                <Text className="text-sm text-on-surface-variant">vs average</Text>
-              </View>
+
+                <View className="flex-row justify-between items-start mb-6 relative z-10">
+                  <Text className="font-semibold text-white/80 text-base">Total Pemasukan</Text>
+                  <MaterialIcons name="trending-up" size={24} color="#ffffff" />
+                </View>
+                <View className="relative z-10">
+                  <Text className="text-[32px] font-extrabold tracking-tight text-white">{formatRupiah(laporan.totalPemasukan)}</Text>
+                  <Text className="text-sm mt-1 text-white/80">Bulan Ini</Text>
+                </View>
+              </LinearGradient>
             </View>
-          </View>
 
-        </View>
-
-        {/* Occupancy by Branch */}
-        <View className="mb-8 flex-col gap-4">
-          <View className="flex-row justify-between items-end">
-            <Text className="font-bold text-[22px] text-on-surface">Occupancy by Branch</Text>
-            <TouchableOpacity className="flex-row items-center gap-1">
-              <Text className="text-primary text-sm font-semibold">View All</Text>
-              <MaterialIcons name="chevron-right" size={16} color="#3525cd" />
-            </TouchableOpacity>
-          </View>
-          
-          <View className="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/20 shadow-sm flex-col gap-6">
-            
-            <View>
-              <View className="flex-row justify-between mb-2">
-                <Text className="font-semibold text-on-surface">The Continental - Central</Text>
-                <Text className="font-semibold text-on-surface">95%</Text>
+            {/* Occupancy */}
+            <View className="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/20 shadow-sm flex-col justify-between">
+              <View className="flex-row justify-between items-start mb-6">
+                <Text className="font-semibold text-on-surface-variant text-base">Total Penghuni</Text>
+                <MaterialIcons name="hotel" size={24} color="#464555" />
               </View>
-              <View className="w-full bg-surface-container h-3 rounded-full overflow-hidden">
-                <View className="bg-primary h-full w-[95%] rounded-full" />
+              <View>
+                <Text className="text-[32px] font-extrabold text-on-surface">{globalOccupancy}%</Text>
+                <View className="w-full bg-surface-container mt-3 h-2 rounded-full overflow-hidden">
+                  <View className="bg-[#006b5f] h-full rounded-full" style={{ width: `${globalOccupancy}%` }} />
+                </View>
+                <Text className="text-sm mt-2 text-on-surface-variant">{totalOccupied} / {totalKamar} Kamar Terisi</Text>
               </View>
             </View>
 
-            <View>
-              <View className="flex-row justify-between mb-2">
-                <Text className="font-semibold text-on-surface">Oasis West</Text>
-                <Text className="font-semibold text-on-surface">82%</Text>
+            {/* Maintenance */}
+            <View className="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/20 shadow-sm flex-col justify-between">
+              <View className="flex-row justify-between items-start mb-6">
+                <Text className="font-semibold text-on-surface-variant text-base">Total Pengeluaran</Text>
+                <MaterialIcons name="plumbing" size={24} color="#464555" />
               </View>
-              <View className="w-full bg-surface-container h-3 rounded-full overflow-hidden">
-                <View className="bg-primary h-full w-[82%] rounded-full" />
-              </View>
-            </View>
-
-            <View>
-              <View className="flex-row justify-between mb-2">
-                <Text className="font-semibold text-on-surface">Riverfront Suites</Text>
-                <Text className="font-semibold text-[#ba1a1a]">65%</Text>
-              </View>
-              <View className="w-full bg-surface-container h-3 rounded-full overflow-hidden">
-                <View className="bg-[#ba1a1a] h-full w-[65%] rounded-full" />
-              </View>
-            </View>
-
-            <View>
-              <View className="flex-row justify-between mb-2">
-                <Text className="font-semibold text-on-surface">Highland Park Towers</Text>
-                <Text className="font-semibold text-on-surface">100%</Text>
-              </View>
-              <View className="w-full bg-surface-container h-3 rounded-full overflow-hidden">
-                <View className="bg-[#006b5f] h-full w-[100%] rounded-full" />
+              <View>
+                <Text className="text-[24px] font-extrabold text-on-surface">{formatRupiah(laporan.totalPengeluaran)}</Text>
+                <View className="flex-row items-center gap-2 mt-2">
+                  <Text className="text-sm text-on-surface-variant">Bulan Ini</Text>
+                </View>
               </View>
             </View>
 
           </View>
-        </View>
 
-        {/* Urgent Alerts */}
-        <View className="flex-col gap-4">
-          <Text className="font-bold text-[22px] text-on-surface">Urgent Alerts</Text>
-          <View className="bg-surface-container-low rounded-xl p-4 flex-col gap-4">
-            
-            <View className="bg-surface-container-lowest p-4 rounded-lg shadow-sm border-l-4 border-[#ba1a1a] flex-row gap-4 items-start">
-              <View className="bg-[#ffdad6] p-2 rounded-full mt-1">
-                <MaterialIcons name="warning" size={20} color="#93000a" />
-              </View>
-              <View className="flex-1">
-                <Text className="font-semibold text-on-surface text-sm">Low Occupancy Alert</Text>
-                <Text className="text-xs text-on-surface-variant mt-1">Riverfront Suites has dropped below 70% occupancy target.</Text>
-              </View>
+          {/* Occupancy by Branch */}
+          <View className="mb-8 flex-col gap-4">
+            <View className="flex-row justify-between items-end">
+              <Text className="font-bold text-[22px] text-on-surface">Okupansi per Cabang</Text>
+              <TouchableOpacity onPress={() => router.push('/(owner)/branches' as any)} className="flex-row items-center gap-1">
+                <Text className="text-primary text-sm font-semibold">Lihat Semua</Text>
+                <MaterialIcons name="chevron-right" size={16} color="#3525cd" />
+              </TouchableOpacity>
             </View>
 
-            <View className="bg-surface-container-lowest p-4 rounded-lg shadow-sm border-l-4 border-[#3d37a9] flex-row gap-4 items-start">
-              <View className="bg-[#dbd7ff] p-2 rounded-full mt-1">
-                <MaterialIcons name="water-damage" size={20} color="#0f0069" />
-              </View>
-              <View className="flex-1">
-                <Text className="font-semibold text-on-surface text-sm">Critical Maintenance</Text>
-                <Text className="text-xs text-on-surface-variant mt-1">Major plumbing issue reported at The Continental - Unit 402.</Text>
-              </View>
+            <View className="bg-surface-container-lowest rounded-xl p-6 border border-outline-variant/20 shadow-sm flex-col gap-6">
+              {branchStats.length > 0 ? branchStats.map(branch => (
+                <View key={branch.idCabang}>
+                  <View className="flex-row justify-between mb-2">
+                    <Text className="font-semibold text-on-surface">{branch.namaCabang}</Text>
+                    <Text className="font-semibold text-on-surface">{branch.occRate}%</Text>
+                  </View>
+                  <View className="w-full bg-surface-container h-3 rounded-full overflow-hidden">
+                    <View className="bg-[#006b5f] h-full rounded-full" style={{ width: `${branch.occRate}%` }} />
+                  </View>
+                </View>
+              )) : (
+                <Text className="text-center text-on-surface-variant">Belum ada cabang</Text>
+              )}
             </View>
-
-            <View className="bg-surface-container-lowest p-4 rounded-lg shadow-sm border-l-4 border-[#777587] flex-row gap-4 items-start">
-              <View className="bg-[#e0e3e5] p-2 rounded-full mt-1">
-                <MaterialIcons name="payments" size={20} color="#464555" />
-              </View>
-              <View className="flex-1">
-                <Text className="font-semibold text-on-surface text-sm">Pending Renewals</Text>
-                <Text className="text-xs text-on-surface-variant mt-1">12 leases expiring in the next 30 days across all branches.</Text>
-              </View>
-            </View>
-
           </View>
-        </View>
 
-      </ScrollView>
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
