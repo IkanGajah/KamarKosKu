@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "sistem-manajemen-kos",
+    "name": "Kamar Kos Ku",
     "slug": "sistem-manajemen-kos",
     "version": "1.2.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/LOGO KOS pake bg.png",
     "scheme": "frontendkos",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -20,9 +20,7 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/LOGO KOS.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
