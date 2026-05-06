@@ -20,7 +20,7 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/LOGO KOS.png"
+        "foregroundImage": "./assets/images/LOGO KOS pake bg.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
