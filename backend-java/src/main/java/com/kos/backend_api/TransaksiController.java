@@ -85,6 +85,45 @@ public class TransaksiController {
         return new WebResponse<>(201, "Check-in berhasil! Status kamar telah diperbarui.", baru);
     }
 
+    @PostMapping("/booking")
+    @PreAuthorize("hasRole('PENYEWA')")
+    public WebResponse<TransaksiSewa> booking(@RequestBody TransaksiSewa request) {
+        if (request.getKamar() == null || request.getKamar().getIdKamar() == 0) {
+            throw new RuntimeException("ID Kamar tidak valid atau tidak ditemukan dalam request!");
+        }
+
+        Kamar kamar = kamarRepository.findById(request.getKamar().getIdKamar())
+                .orElseThrow(() -> new RuntimeException("Kamar dengan ID " + request.getKamar().getIdKamar() + " tidak ditemukan"));
+
+        if (!StatusKamar.TERSEDIA.equals(kamar.getStatusKetersediaan())) {
+            throw new RuntimeException("Kamar sedang tidak tersedia!");
+        }
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        User user = (User) auth.getPrincipal();
+
+        Penyewa penyewa = penyewaRepository.findById(user.getIdUser())
+            .orElseGet(() -> penyewaRepository.findByEmail(user.getEmail())
+                .orElseThrow(() -> new RuntimeException("Data profil penyewa tidak ditemukan. Pastikan Anda sudah terdaftar sebagai penyewa.")));
+
+        request.setPenyewa(penyewa);
+        request.setKamar(kamar);
+        request.setStatusBayar(com.kos.backend_api.models.enums.StatusBayar.PENDING);
+
+        if (request.getTanggalTransaksi() == null) {
+            request.setTanggalTransaksi(java.time.LocalDate.now());
+        }
+        if (request.getJatuhTempo() == null) {
+            request.setJatuhTempo(request.getTanggalTransaksi().plusMonths(1));
+        }
+
+        // Jangan ubah status kamar dulu, tunggu konfirmasi admin
+
+        TransaksiSewa baru = transaksiRepository.save(request);
+
+        return new WebResponse<>(201, "Booking berhasil! Menunggu konfirmasi admin.", baru);
+    }
+
     @PostMapping("/check-out/{idTransaksi}")
     @PreAuthorize("hasAnyRole('OWNER', 'ADMIN')")
     public WebResponse<String> checkOut(@PathVariable int idTransaksi) {
@@ -152,8 +191,13 @@ public class TransaksiController {
         validateAdminCabangAccess(transaksi.getKamar().getCabang().getIdCabang());
 
         transaksi.setStatusBayar(com.kos.backend_api.models.enums.StatusBayar.LUNAS);
+        
+        Kamar kamar = transaksi.getKamar();
+        kamar.setStatusKetersediaan(StatusKamar.PENUH);
+        kamarRepository.save(kamar);
+        
         transaksiRepository.save(transaksi);
 
-        return new WebResponse<>(200, "Pembayaran manual berhasil dikonfirmasi", transaksi);
+        return new WebResponse<>(200, "Pembayaran manual berhasil dikonfirmasi dan kamar sekarang terisi", transaksi);
     }
 }
