@@ -117,7 +117,7 @@ export default function DetailKamarScreen() {
         >
           <MaterialIcons name="arrow-back" size={24} color="#464555" />
         </TouchableOpacity>
-        <Text className="font-black text-xl text-primary tracking-tight">KosKu</Text>
+        <Text className="font-black text-xl text-primary tracking-tight">Kamar Kos Ku</Text>
         <View className="w-10 h-10" />
       </View>
 

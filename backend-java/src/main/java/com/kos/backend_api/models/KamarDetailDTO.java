@@ -10,6 +10,8 @@ public class KamarDetailDTO {
     
     private String namaPenyewa; 
     private String tempoBayar;
+    private String namaAdmin;
+    private String noTeleponAdmin;
 
     public int getId() {
         return id;

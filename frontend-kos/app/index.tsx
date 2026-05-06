@@ -29,23 +29,23 @@ export default function GuestDashboardScreen() {
   return (
     <View className="flex-1 bg-surface">
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      
+
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         {/* Header/Hero Section */}
         <Animated.View entering={FadeIn.duration(800)} className="w-full h-[55vh] relative bg-primary">
-          <Image 
-            source={{ uri: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?q=80&w=2000&auto=format&fit=crop' }} 
+          <Image
+            source={{ uri: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?q=80&w=2000&auto=format&fit=crop' }}
             className="w-full h-full opacity-80"
             resizeMode="cover"
           />
           <View className="absolute inset-0 bg-black/40" />
-          
+
           <SafeAreaView className="absolute inset-0 justify-between py-4 px-6" edges={['top']}>
             <View className="flex-row justify-between items-center pt-2">
               <View className="bg-white/20 px-4 py-2 rounded-full">
-                <Text className="text-white font-black text-xl tracking-widest">KosKu</Text>
+                <Text className="text-white font-black text-xl tracking-widest">Kamar Kos Ku</Text>
               </View>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => router.push('/login')}
                 className="bg-white/90 px-5 py-2.5 rounded-full shadow-sm"
               >
@@ -66,7 +66,7 @@ export default function GuestDashboardScreen() {
 
         {/* Content Section */}
         <View className="px-6 pt-8 bg-surface rounded-t-[32px] -mt-8">
-          
+
           {/* Quick Stats */}
           <Animated.View entering={FadeInDown.delay(700).springify()} className="flex-row justify-between mb-8 bg-surface-container-lowest p-6 rounded-3xl shadow-sm border border-outline-variant/10">
             <View className="items-center flex-1">
@@ -90,10 +90,10 @@ export default function GuestDashboardScreen() {
 
           {/* Why Choose Us */}
           <View>
-            <Text className="text-on-surface font-black text-xl mb-5">Kenapa Memilih KosKu?</Text>
+            <Text className="text-on-surface font-black text-xl mb-5">Kenapa Memilih Kamar Kos Ku?</Text>
             <View className="gap-4">
               {FEATURES.map((feature, index) => (
-                <Animated.View 
+                <Animated.View
                   key={index}
                   entering={FadeInDown.delay(800 + (index * 150)).springify()}
                   className="flex-row items-center bg-surface-container-lowest p-4 rounded-2xl shadow-sm border border-outline-variant/10"
@@ -113,7 +113,7 @@ export default function GuestDashboardScreen() {
       </ScrollView>
 
       {/* Floating Bottom Button */}
-      <Animated.View 
+      <Animated.View
         entering={FadeInDown.delay(1200).springify()}
         className="absolute bottom-0 left-0 right-0 bg-surface/95 border-t border-outline-variant/10 px-6 py-4"
         style={Platform.OS === 'ios' ? { shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.05, shadowRadius: 10 } : { elevation: 10 }}

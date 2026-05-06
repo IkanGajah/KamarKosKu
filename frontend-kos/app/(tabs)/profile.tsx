@@ -126,11 +126,11 @@ export default function ProfileScreen() {
 
   const contactAdmin = (method: 'whatsapp' | 'call' | 'email') => {
     const adminPhone = "+6281234567890"; // Ganti dengan nomor admin asli
-    const adminEmail = "support@kosku.com";
+    const adminEmail = "support@kkk.com";
     
     switch (method) {
       case 'whatsapp':
-        const message = `Halo Admin KosKu, saya ${profile.nama}. Ingin bertanya mengenai...`;
+        const message = `Halo Admin KKK, saya ${profile.nama}. Ingin bertanya mengenai...`;
         Linking.openURL(`whatsapp://send?phone=${adminPhone}&text=${encodeURIComponent(message)}`)
           .catch(() => Alert.alert("Error", "WhatsApp tidak terpasang di perangkat Anda."));
         break;
@@ -138,7 +138,7 @@ export default function ProfileScreen() {
         Linking.openURL(`tel:${adminPhone}`);
         break;
       case 'email':
-        Linking.openURL(`mailto:${adminEmail}?subject=Bantuan Aplikasi KosKu&body=Halo Admin...`);
+        Linking.openURL(`mailto:${adminEmail}?subject=Bantuan Aplikasi KKK&body=Halo Admin...`);
         break;
     }
     setIsContactModalVisible(false);

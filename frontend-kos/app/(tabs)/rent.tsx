@@ -60,7 +60,9 @@ export default function RentScreen() {
             startDate: t.tanggalTransaksi || t.tanggal_masuk || t.kamar?.tanggal_masuk || 'Unknown',
             endDate: t.jatuhTempo || '-',
             image: MOCK_IMAGES[index % MOCK_IMAGES.length],
-            originalId: t.idTransaksi
+            originalId: t.idTransaksi,
+            adminName: t.namaAdmin || 'Admin',
+            adminPhone: t.noTeleponAdmin || '+6281234567890'
           };
         });
         setRentList(mapped);
@@ -94,8 +96,9 @@ export default function RentScreen() {
   }, []);
 
   const contactAdminForPayment = () => {
-    const adminPhone = "+6281234567890"; // Ganti dengan nomor admin asli
-    const message = `Halo Admin KosKu,\n\nSaya telah melakukan transfer untuk pembayaran:\nKamar: ${selectedRent?.roomName}\nTotal: Rp ${selectedRent?.price.toLocaleString('id-ID')}\n\nBerikut saya lampirkan bukti transfernya. Mohon bantuannya untuk verifikasi. Terima kasih.`;
+    const adminPhone = selectedRent?.adminPhone || "+6281234567890";
+    const adminName = selectedRent?.adminName || "Admin";
+    const message = `Halo ${adminName} KKK,\n\nSaya telah melakukan transfer untuk pembayaran:\nKamar: ${selectedRent?.roomName}\nTotal: Rp ${selectedRent?.price.toLocaleString('id-ID')}\n\nBerikut saya lampirkan bukti transfernya. Mohon bantuannya untuk verifikasi. Terima kasih.`;
     
     Linking.openURL(`whatsapp://send?phone=${adminPhone}&text=${encodeURIComponent(message)}`)
       .then(() => setIsPaymentModalVisible(false))

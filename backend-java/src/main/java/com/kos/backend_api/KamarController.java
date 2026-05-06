@@ -35,6 +35,9 @@ public class KamarController {
     @Autowired
     private RiwayatSewaRepository riwayatSewaRepository;
 
+    @Autowired
+    private AdminCabangRepository adminCabangRepository;
+
     @GetMapping
     public WebResponse<List<Kamar>> getAll() {
         List<Kamar> data = kamarRepository.findByStatusKetersediaanNot(StatusKamar.NONAKTIF);
@@ -63,6 +66,14 @@ public class KamarController {
         dto.setHarga(kamar.getHargaSewa());
         dto.setStatus(kamar.getStatusKetersediaan() != null ? kamar.getStatusKetersediaan().name() : null);
         dto.setFoto(kamar.getFoto());
+        
+        if (kamar.getCabang() != null) {
+            adminCabangRepository.findByCabangIdCabang(kamar.getCabang().getIdCabang())
+                .ifPresent(admin -> {
+                    dto.setNamaAdmin(admin.getNama());
+                    dto.setNoTeleponAdmin(admin.getNoTelepon());
+                });
+        }
 
         if (StatusKamar.PENUH.equals(kamar.getStatusKetersediaan())) {
             var transaksiOpt = transaksiSewaRepository.findFirstByKamarIdKamarOrderByTanggalTransaksiDesc(id);

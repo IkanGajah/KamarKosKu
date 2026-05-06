@@ -333,7 +333,7 @@ export default function OwnerBranchesScreen() {
 
       {/* Top App Bar */}
       <View className="px-6 pb-4 flex-row justify-between items-center z-50">
-        <Text className="font-black text-xl text-black tracking-tight">KosKu Owner</Text>
+        <Text className="font-black text-xl text-black tracking-tight">KKK Owner</Text>
         <TouchableOpacity
           onPress={() => router.push('/notifications' as any)}
           className="hover:opacity-80 active:scale-95"
@@ -453,7 +453,7 @@ export default function OwnerBranchesScreen() {
                 <Text className="text-sm font-medium text-on-surface-variant mb-2">Nama Cabang</Text>
                 <TextInput
                   className="w-full px-4 py-3 bg-surface-container-highest rounded-xl text-on-surface h-[50px]"
-                  placeholder="Misal: Kos Ku Sudirman"
+                  placeholder="Misal: KKK Sudirman"
                   value={namaCabang}
                   onChangeText={setNamaCabang}
                 />
