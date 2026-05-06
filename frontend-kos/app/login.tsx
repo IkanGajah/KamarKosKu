@@ -97,7 +97,7 @@ export default function LoginScreen() {
             <View className="items-center mb-10">
               <View className="flex-row items-center gap-2">
                 <MaterialIcons name="domain" size={40} color="#ffffff" />
-                <Text className="font-black text-4xl text-white tracking-tighter">KosKu</Text>
+                <Text className="font-black text-4xl text-white tracking-tighter">KKK</Text>
               </View>
               <Text className="text-white/80 mt-2 text-base font-medium">Manajemen Properti Premium</Text>
             </View>

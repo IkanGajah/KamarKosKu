@@ -163,7 +163,7 @@ export default function GuestHomeScreen() {
       {/* Header Section for Guest */}
       <View className="px-6 pb-4 flex-row justify-between items-center z-50">
         <View>
-          <Text className="text-primary font-black text-2xl tracking-tight">KosKu</Text>
+          <Text className="text-primary font-black text-2xl tracking-tight">KKK</Text>
           <Text className="text-on-surface-variant text-xs font-medium">Temukan hunian impianmu</Text>
         </View>
         <TouchableOpacity
