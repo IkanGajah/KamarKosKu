@@ -32,6 +32,12 @@ public class TransaksiSewa {
 
     private LocalDate jatuhTempo;
 
+    @Transient
+    private String namaAdmin;
+
+    @Transient
+    private String noTeleponAdmin;
+
     public TransaksiSewa() {}
 
     public TransaksiSewa(Penyewa penyewa, Kamar kamar, LocalDate tanggalTransaksi, int nominal, MetodePembayaran metodePembayaran, StatusBayar statusBayar, LocalDate jatuhTempo) {

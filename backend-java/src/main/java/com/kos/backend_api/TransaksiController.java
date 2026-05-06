@@ -37,6 +37,9 @@ public class TransaksiController {
     @Autowired
     private PenyewaRepository penyewaRepository;
 
+    @Autowired
+    private AdminCabangRepository adminCabangRepository;
+
     private void validateAdminCabangAccess(Integer kamarCabangId) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) return;
@@ -160,7 +163,21 @@ public class TransaksiController {
             throw new AccessDeniedException("Akses ditolak");
         }
         
+        populateAdminInfo(data);
+        
         return new WebResponse<>(200, "Daftar transaksi berhasil diambil", data);
+    }
+
+    private void populateAdminInfo(List<TransaksiSewa> data) {
+        for (TransaksiSewa t : data) {
+            if (t.getKamar() != null && t.getKamar().getCabang() != null) {
+                adminCabangRepository.findByCabangIdCabang(t.getKamar().getCabang().getIdCabang())
+                    .ifPresent(admin -> {
+                        t.setNamaAdmin(admin.getNama());
+                        t.setNoTeleponAdmin(admin.getNoTelepon());
+                    });
+            }
+        }
     }
 
     @PutMapping("/{idTransaksi}/bayar-online")
