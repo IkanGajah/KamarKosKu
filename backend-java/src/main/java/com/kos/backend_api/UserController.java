@@ -12,6 +12,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/users")
+@CrossOrigin
 public class UserController {
 
     @Autowired
@@ -38,18 +39,28 @@ public class UserController {
     }
 
     @PutMapping("/profile")
-    public WebResponse<com.kos.backend_api.models.User> updateProfile(@RequestBody com.kos.backend_api.models.User request) {
+    @PreAuthorize("isAuthenticated()")
+    public WebResponse<com.kos.backend_api.models.User> updateProfile(@RequestBody ProfileRequest request) {
         org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
         String email = auth.getName();
         
         com.kos.backend_api.models.User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
         
-        user.setNama(request.getNama());
-        user.setNoTelepon(request.getNoTelepon());
+        if (request.getNama() != null) user.setNama(request.getNama());
+        if (request.getNoTelepon() != null) user.setNoTelepon(request.getNoTelepon());
         
         com.kos.backend_api.models.User updated = userRepository.save(user);
         return new WebResponse<>(200, "Profil berhasil diupdate", updated);
+    }
+
+    public static class ProfileRequest {
+        private String nama;
+        private String noTelepon;
+        public String getNama() { return nama; }
+        public void setNama(String nama) { this.nama = nama; }
+        public String getNoTelepon() { return noTelepon; }
+        public void setNoTelepon(String noTelepon) { this.noTelepon = noTelepon; }
     }
 
     @GetMapping("/admin")

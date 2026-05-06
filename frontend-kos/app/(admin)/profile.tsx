@@ -41,7 +41,14 @@ export default function AdminProfileScreen() {
         headers: { 'Authorization': `Bearer ${globalState.token}` }
       });
       if (res.ok) {
-        const json = await res.json();
+        const text = await res.text();
+        let json;
+        try {
+          json = JSON.parse(text);
+        } catch (e) {
+          console.error("fetchProfile: Failed to parse JSON", text);
+          return null;
+        }
         const p = json.data;
         
         const newName = p.nama || globalState.namaLengkap || (globalState.email ? globalState.email.split('@')[0] : 'Admin');
@@ -113,12 +120,23 @@ export default function AdminProfileScreen() {
         Alert.alert("Sukses", "Profil berhasil diperbarui.");
         setIsEditModalVisible(false);
       } else {
-        const json = await res.json();
-        Alert.alert("Gagal", json.message || "Gagal memperbarui profil.");
+        const text = await res.text();
+        console.log("Response Error Body:", text);
+        
+        let errorMessage = "Gagal memperbarui profil.";
+        try {
+          const json = JSON.parse(text);
+          errorMessage = json.message || errorMessage;
+        } catch (e) {
+          // If not JSON, use status text or a generic message
+          errorMessage = `Server Error (${res.status}): ${res.statusText || 'Unknown Error'}`;
+        }
+        
+        Alert.alert("Gagal", errorMessage);
       }
     } catch (e) {
       console.error(e);
-      Alert.alert("Error", "Gagal menghubungi server.");
+      Alert.alert("Error", "Gagal menghubungi server. Pastikan koneksi internet aktif dan server berjalan.");
     } finally {
       setIsSaving(false);
     }
