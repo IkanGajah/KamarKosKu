@@ -55,6 +55,13 @@ export default function OwnerTabLayout() {
         }}
       />
       <Tabs.Screen
+        name="tenants"
+        options={{
+          title: 'Transaksi',
+          tabBarIcon: ({ color }) => <MaterialIcons size={24} name="receipt-long" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profil',
