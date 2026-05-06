@@ -1,13 +1,14 @@
 import React from 'react';
-import { 
-  View, 
-  Text, 
-  ScrollView, 
-  TouchableOpacity, 
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
   Image,
   TextInput,
   ActivityIndicator,
-  Alert
+  Alert,
+  Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -21,6 +22,9 @@ export default function AdminTenantsScreen() {
   const [searchQuery, setSearchQuery] = React.useState('');
   const [adminProfile, setAdminProfile] = React.useState<any>(null);
 
+  const [selectedTenant, setSelectedTenant] = React.useState<any>(null);
+  const [isDetailVisible, setIsDetailVisible] = React.useState(false);
+
   React.useEffect(() => {
     fetchData();
   }, []);
@@ -33,7 +37,7 @@ export default function AdminTenantsScreen() {
       const profileJson = await profileRes.json();
       setAdminProfile(profileJson.data || {});
 
-      // Fetch transactions (already filtered by backend for Admin's branch)
+      // Fetch transactions
       const response = await fetch(`${API_BASE_URL}/transaksi`, {
         headers: { 'Authorization': `Bearer ${globalState.token}` }
       });
@@ -42,14 +46,31 @@ export default function AdminTenantsScreen() {
         const mapped = json.data.map((t: any) => ({
           id: t.idTransaksi.toString(),
           name: t.penyewa?.nama || 'Penyewa Tidak Diketahui',
+          email: t.penyewa?.email || '-',
+          phone: t.penyewa?.noTelepon || '-',
           room: `Kamar ${t.kamar?.nomorKamar || '?'}`,
-          rentAmount: `Rp ${(t.hargaDeal || 0).toLocaleString('id-ID')}`,
+          nominal: t.nominal || 0,
+          rentAmount: `Rp ${(t.nominal || 0).toLocaleString('id-ID')}`,
           date: t.tanggalTransaksi || '-',
+          jatuhTempo: t.jatuhTempo || '-',
+          metode: t.metodePembayaran || 'TUNAI',
           status: t.statusBayar === 'LUNAS' ? 'Lunas' : 'Menunggu',
           rawStatus: t.statusBayar,
           image: null,
           initials: (t.penyewa?.nama || 'U').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
         }));
+        mapped.sort((a: any, b: any) => {
+          if (a.rawStatus === 'PENDING' && b.rawStatus !== 'PENDING') return -1;
+          if (a.rawStatus !== 'PENDING' && b.rawStatus === 'PENDING') return 1;
+          
+          const dateA = new Date(a.date).getTime();
+          const dateB = new Date(b.date).getTime();
+          if (!isNaN(dateA) && !isNaN(dateB) && dateA !== dateB) {
+            return dateB - dateA;
+          }
+          return parseInt(b.id) - parseInt(a.id);
+        });
+        
         setTenants(mapped);
       }
     } catch (error) {
@@ -59,23 +80,29 @@ export default function AdminTenantsScreen() {
     }
   };
 
+  const handleShowDetail = (tenant: any) => {
+    setSelectedTenant(tenant);
+    setIsDetailVisible(true);
+  };
+
   const handleKonfirmasiPembayaran = async (idTransaksi: string) => {
     Alert.alert(
       "Konfirmasi Pembayaran",
       "Apakah Anda yakin ingin mengonfirmasi pembayaran ini secara manual?",
       [
         { text: "Batal", style: "cancel" },
-        { 
-          text: "Konfirmasi", 
+        {
+          text: "Konfirmasi",
           onPress: async () => {
             try {
               const res = await fetch(`${API_BASE_URL}/transaksi/${idTransaksi}/konfirmasi-manual`, {
                 method: 'PUT',
                 headers: { 'Authorization': `Bearer ${globalState.token}` }
               });
-              
+
               if (res.ok) {
                 Alert.alert("Sukses", "Pembayaran berhasil dikonfirmasi.");
+                setIsDetailVisible(false);
                 fetchData();
               } else {
                 const json = await res.json();
@@ -90,7 +117,7 @@ export default function AdminTenantsScreen() {
     );
   };
 
-  const filteredTenants = tenants.filter(t => 
+  const filteredTenants = tenants.filter(t =>
     t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     t.room.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -100,17 +127,17 @@ export default function AdminTenantsScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface pt-4" edges={['top', 'left', 'right']}>
-      
+
       {/* Top App Bar */}
       <View className="px-6 pb-4 flex-row justify-between items-center z-50">
-        <View className="flex-row items-center gap-3">
+        <View className="flex-row items-center">
           {globalState.foto ? (
-            <Image 
+            <Image
               source={{ uri: globalState.foto }}
-              className="w-10 h-10 rounded-full shadow-sm"
+              className="w-10 h-10 rounded-full shadow-sm mr-3"
             />
           ) : (
-            <View className="w-10 h-10 rounded-full bg-primary-container items-center justify-center border border-outline-variant/30">
+            <View className="w-10 h-10 rounded-full bg-primary-container items-center justify-center border border-outline-variant/30 mr-3">
               <Text className="text-on-primary-container font-bold text-xs">{userInitials}</Text>
             </View>
           )}
@@ -123,9 +150,9 @@ export default function AdminTenantsScreen() {
       </View>
       <View className="bg-surface-container-high/50 h-[1px] w-full" />
 
-      <ScrollView 
+      <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }} 
+        contentContainerStyle={{ paddingBottom: 120 }}
         className="px-6 flex-1 mt-4"
       >
         <View className="mb-8">
@@ -159,37 +186,35 @@ export default function AdminTenantsScreen() {
           ) : filteredTenants.length > 0 ? (
             filteredTenants.map((tenant, index) => (
               <View key={tenant.id || index} className="bg-surface-container-lowest rounded-2xl p-6 shadow-sm border border-outline-variant/10 overflow-hidden relative">
-                
+
                 {/* Header: User Info & Status */}
                 <View className="flex-row items-start justify-between mb-6 z-10 relative">
-                  <View className="flex-row items-center gap-3">
+                  <View className="flex-row items-center">
                     {tenant.image ? (
-                      <Image 
-                        source={{ uri: tenant.image }} 
-                        className="w-14 h-14 rounded-full border-2 border-surface"
+                      <Image
+                        source={{ uri: tenant.image }}
+                        className="w-14 h-14 rounded-full border-2 border-surface mr-3"
                       />
                     ) : (
-                      <View className="w-14 h-14 rounded-full bg-primary-container items-center justify-center border-2 border-surface">
+                      <View className="w-14 h-14 rounded-full bg-primary-container items-center justify-center border-2 border-surface mr-3">
                         <Text className="font-bold text-xl text-on-primary-container">{tenant.initials}</Text>
                       </View>
                     )}
                     <View>
                       <Text className="font-bold text-[18px] text-on-surface">{tenant.name}</Text>
-                      <View className="flex-row items-center gap-1 mt-0.5">
-                        <MaterialIcons name="bed" size={16} color="#464555" />
+                      <View className="flex-row items-center mt-0.5">
+                        <MaterialIcons name="bed" size={16} color="#464555" style={{ marginRight: 4 }} />
                         <Text className="text-[13px] text-on-surface-variant">{tenant.room}</Text>
                       </View>
                     </View>
                   </View>
 
                   {/* Status Badge */}
-                  <View className={`px-3 py-1 rounded-full flex-row items-center gap-1 ${
-                    tenant.status === 'Menunggu' ? 'bg-[#ffdad6]' : 'bg-[#e7f3ef]'
-                  }`}>
-                    {tenant.status === 'Lunas' && <MaterialIcons name="check-circle" size={14} color="#006b5f" />}
-                    <Text className={`text-[12px] font-bold tracking-wide ${
-                      tenant.status === 'Menunggu' ? 'text-[#93000a]' : 'text-[#006b5f]'
+                  <View className={`px-3 py-1 rounded-full flex-row items-center ${tenant.status === 'Menunggu' ? 'bg-[#ffdad6]' : 'bg-[#e7f3ef]'
                     }`}>
+                    {tenant.status === 'Lunas' && <MaterialIcons name="check-circle" size={14} color="#006b5f" style={{ marginRight: 4 }} />}
+                    <Text className={`text-[12px] font-bold tracking-wide ${tenant.status === 'Menunggu' ? 'text-[#93000a]' : 'text-[#006b5f]'
+                      }`}>
                       {tenant.status}
                     </Text>
                   </View>
@@ -208,25 +233,24 @@ export default function AdminTenantsScreen() {
                 </View>
 
                 {/* Action Buttons */}
-                <View className="flex-row gap-3">
+                <View className="flex-row">
                   {tenant.status === 'Menunggu' ? (
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       onPress={() => handleKonfirmasiPembayaran(tenant.id)}
-                      className="flex-1 h-[44px] rounded-xl flex-row items-center justify-center gap-2 active:scale-95 bg-primary"
+                      className="flex-1 h-[44px] rounded-xl flex-row items-center justify-center bg-primary mr-3"
                     >
-                      <MaterialIcons name="verified" size={20} color="#ffffff" />
+                      <MaterialIcons name="verified" size={20} color="#ffffff" style={{ marginRight: 8 }} />
                       <Text className="font-bold text-white">Konfirmasi Lunas</Text>
                     </TouchableOpacity>
                   ) : (
-                    <TouchableOpacity className="flex-1 h-[44px] rounded-xl flex-row items-center justify-center gap-2 active:scale-95 bg-surface-container-highest">
-                      <MaterialIcons name="receipt-long" size={20} color="#191c1e" />
+                    <TouchableOpacity
+                      onPress={() => handleShowDetail(tenant)}
+                      className="flex-1 h-[44px] rounded-xl flex-row items-center justify-center bg-surface-container-highest mr-3"
+                    >
+                      <MaterialIcons name="receipt-long" size={20} color="#191c1e" style={{ marginRight: 8 }} />
                       <Text className="font-semibold text-on-surface">Lihat Detail</Text>
                     </TouchableOpacity>
                   )}
-                  
-                  <TouchableOpacity className="w-[44px] h-[44px] rounded-xl border border-outline-variant/20 items-center justify-center bg-surface-container-lowest active:scale-95">
-                    <MaterialIcons name="more-horiz" size={20} color="#464555" />
-                  </TouchableOpacity>
                 </View>
 
               </View>
@@ -240,6 +264,76 @@ export default function AdminTenantsScreen() {
         </View>
 
       </ScrollView>
+
+      {/* Tenant Detail Modal */}
+      <Modal visible={isDetailVisible} animationType="slide" transparent>
+        <View className="flex-1 justify-end bg-black/50">
+          <View className="bg-surface rounded-t-3xl p-6 shadow-xl">
+            <View className="flex-row justify-between items-center mb-6">
+              <Text className="text-xl font-black text-on-surface">Detail Transaksi</Text>
+              <TouchableOpacity onPress={() => setIsDetailVisible(false)}>
+                <MaterialIcons name="close" size={24} color="#777587" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedTenant && (
+              <View className="space-y-4">
+                <View className="flex-row items-center bg-surface-container-low p-4 rounded-2xl mb-4">
+                  <View className="w-12 h-12 rounded-full bg-primary-container items-center justify-center mr-4">
+                    <Text className="font-bold text-lg text-on-primary-container">{selectedTenant.initials}</Text>
+                  </View>
+                  <View>
+                    <Text className="font-bold text-lg text-on-surface">{selectedTenant.name}</Text>
+                    <Text className="text-on-surface-variant">{selectedTenant.email}</Text>
+                  </View>
+                </View>
+
+                <View className="bg-surface-container-highest p-4 rounded-2xl space-y-3 mb-6">
+                  <View className="flex-row justify-between border-b border-outline-variant/20 pb-2">
+                    <Text className="text-on-surface-variant font-medium">Kamar</Text>
+                    <Text className="font-bold text-on-surface">{selectedTenant.room}</Text>
+                  </View>
+                  <View className="flex-row justify-between border-b border-outline-variant/20 pb-2">
+                    <Text className="text-on-surface-variant font-medium">Nominal</Text>
+                    <Text className="font-bold text-on-surface">{selectedTenant.rentAmount}</Text>
+                  </View>
+                  <View className="flex-row justify-between border-b border-outline-variant/20 pb-2">
+                    <Text className="text-on-surface-variant font-medium">Metode</Text>
+                    <Text className="font-bold text-on-surface">{selectedTenant.metode}</Text>
+                  </View>
+                  <View className="flex-row justify-between border-b border-outline-variant/20 pb-2">
+                    <Text className="text-on-surface-variant font-medium">Tgl Transaksi</Text>
+                    <Text className="font-bold text-on-surface">{selectedTenant.date}</Text>
+                  </View>
+                  <View className="flex-row justify-between">
+                    <Text className="text-on-surface-variant font-medium">Jatuh Tempo</Text>
+                    <Text className="font-bold text-error">{selectedTenant.jatuhTempo}</Text>
+                  </View>
+                </View>
+
+                {selectedTenant.rawStatus === 'PENDING' && (
+                  <TouchableOpacity
+                    onPress={() => handleKonfirmasiPembayaran(selectedTenant.id)}
+                    className="bg-primary h-14 rounded-xl items-center justify-center flex-row mb-2"
+                  >
+                    <MaterialIcons name="verified" size={20} color="#fff" style={{ marginRight: 8 }} />
+                    <Text className="text-white font-bold text-lg">Konfirmasi Sekarang</Text>
+                  </TouchableOpacity>
+                )}
+
+                <TouchableOpacity
+                  onPress={() => setIsDetailVisible(false)}
+                  className="bg-surface-container-high h-14 rounded-xl items-center justify-center"
+                >
+                  <Text className="text-on-surface font-bold text-lg">Tutup</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            <View className="h-8" />
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
