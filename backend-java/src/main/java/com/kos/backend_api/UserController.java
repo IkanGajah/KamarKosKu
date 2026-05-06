@@ -21,7 +21,36 @@ public class UserController {
     private CabangKosRepository cabangKosRepository;
 
     @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
     private PasswordEncoder encoder;
+
+    @GetMapping("/profile")
+    public WebResponse<com.kos.backend_api.models.User> getProfile() {
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        String email = auth.getName();
+        
+        com.kos.backend_api.models.User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
+                
+        return new WebResponse<>(200, "Profil berhasil diambil", user);
+    }
+
+    @PutMapping("/profile")
+    public WebResponse<com.kos.backend_api.models.User> updateProfile(@RequestBody com.kos.backend_api.models.User request) {
+        org.springframework.security.core.Authentication auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        String email = auth.getName();
+        
+        com.kos.backend_api.models.User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
+        
+        user.setNama(request.getNama());
+        user.setNoTelepon(request.getNoTelepon());
+        
+        com.kos.backend_api.models.User updated = userRepository.save(user);
+        return new WebResponse<>(200, "Profil berhasil diupdate", updated);
+    }
 
     @GetMapping("/admin")
     @PreAuthorize("hasRole('OWNER')")
@@ -32,17 +61,56 @@ public class UserController {
     @PostMapping("/admin")
     @PreAuthorize("hasRole('OWNER')")
     public WebResponse<AdminCabang> createAdmin(@RequestBody AdminCabang request) {
-        if (request.getCabang() == null || request.getCabang().getIdCabang() == 0) {
-            throw new RuntimeException("Cabang Kos harus diisi");
+        // Validasi Email Unik
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+            throw new RuntimeException("Email '" + request.getEmail() + "' sudah terdaftar");
         }
 
-        CabangKos cabang = cabangKosRepository.findById(request.getCabang().getIdCabang())
-                .orElseThrow(() -> new RuntimeException("Cabang Kos tidak ditemukan"));
+        // Password wajib diisi
+        if (request.getPassword() == null || request.getPassword().isEmpty()) {
+            throw new RuntimeException("Password wajib diisi");
+        }
 
-        request.setCabang(cabang);
+        // Cabang bersifat opsional saat pembuatan awal (bisa diatur nanti di Edit Cabang)
+        if (request.getCabang() != null && request.getCabang().getIdCabang() != 0) {
+            CabangKos cabang = cabangKosRepository.findById(request.getCabang().getIdCabang())
+                    .orElseThrow(() -> new RuntimeException("Cabang Kos tidak ditemukan"));
+            request.setCabang(cabang);
+        } else {
+            request.setCabang(null);
+        }
+
         request.setPassword(encoder.encode(request.getPassword()));
 
         AdminCabang savedAdmin = adminCabangRepository.save(request);
         return new WebResponse<>(201, "Admin Cabang berhasil dibuat", savedAdmin);
+    }
+
+    @DeleteMapping("/admin/{id}")
+    @PreAuthorize("hasRole('OWNER')")
+    public WebResponse<String> deleteAdmin(@PathVariable int id) {
+        AdminCabang admin = adminCabangRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Admin tidak ditemukan"));
+        
+        adminCabangRepository.delete(admin);
+        return new WebResponse<>(200, "Admin berhasil dihapus", "OK");
+    }
+
+    @PutMapping("/admin/{id}/cabang")
+    @PreAuthorize("hasRole('OWNER')")
+    public WebResponse<AdminCabang> updateAdminCabang(@PathVariable int id, @RequestBody AdminCabang request) {
+        AdminCabang admin = adminCabangRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Admin tidak ditemukan"));
+        
+        if (request.getCabang() == null || request.getCabang().getIdCabang() == 0) {
+            admin.setCabang(null);
+        } else {
+            CabangKos cabang = cabangKosRepository.findById(request.getCabang().getIdCabang())
+                    .orElseThrow(() -> new RuntimeException("Cabang Kos tidak ditemukan"));
+            admin.setCabang(cabang);
+        }
+        
+        AdminCabang updatedAdmin = adminCabangRepository.save(admin);
+        return new WebResponse<>(200, "Cabang admin berhasil diupdate", updatedAdmin);
     }
 }

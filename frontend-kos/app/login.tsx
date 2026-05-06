@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { API_BASE_URL } from '@/constants/config';
+import { globalState } from './_globalState';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -43,12 +44,12 @@ export default function LoginScreen() {
 
       if (response.ok && responseData.data) {
         const role = responseData.data.role;
-        const globalState = require('./_globalState').globalState;
         globalState.email = email;
         globalState.token = responseData.data.token || '';
         globalState.role = role;
         globalState.namaLengkap = responseData.data.nama || '';
         globalState.foto = responseData.data.foto || '';
+        globalState.noTelepon = responseData.data.noTelepon || '';
 
         if (role === 'ROLE_OWNER') {
           router.replace('/(owner)' as any);
@@ -58,7 +59,13 @@ export default function LoginScreen() {
           router.replace('/(tabs)' as any);
         }
       } else {
-        Alert.alert("Login Gagal", responseData.message || "Kredensial tidak valid");
+        if (response.status === 401) {
+          Alert.alert("Login Gagal", "Password yang Anda masukkan salah.");
+        } else if (response.status === 404) {
+          Alert.alert("Login Gagal", "Email tidak terdaftar.");
+        } else {
+          Alert.alert("Login Gagal", responseData.message || "Kredensial tidak valid");
+        }
       }
 
     } catch (error) {
@@ -152,9 +159,6 @@ export default function LoginScreen() {
                     </TouchableOpacity>
                   </View>
                   <View className="flex-row justify-end mt-2">
-                    <TouchableOpacity>
-                      <Text className="text-sm font-medium text-primary">Lupa password?</Text>
-                    </TouchableOpacity>
                   </View>
                 </View>
 
@@ -193,7 +197,7 @@ export default function LoginScreen() {
             <View className="mt-8 flex-row justify-center">
               <TouchableOpacity
                 className="flex-row items-center gap-2"
-                onPress={() => router.replace('/' as any)}
+                onPress={() => router.replace('/katalog' as any)}
               >
                 <MaterialIcons name="arrow-back" size={16} color="rgba(255,255,255,0.8)" />
                 <Text className="text-sm font-medium text-white/80">Lihat Katalog</Text>

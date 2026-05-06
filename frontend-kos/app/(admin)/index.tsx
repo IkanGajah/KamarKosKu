@@ -5,18 +5,20 @@ import {
   ScrollView, 
   TouchableOpacity, 
   Image,
-  Platform,
   ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { API_BASE_URL } from '@/constants/config';
 import { globalState } from '../_globalState';
 import { Kamar } from '@/types/types';
 
 export default function AdminDashboardScreen() {
+  const router = useRouter();
   const [loading, setLoading] = React.useState(true);
+  const [adminProfile, setAdminProfile] = React.useState<any>(null);
   const [stats, setStats] = React.useState({
     totalRooms: 0,
     availableRooms: 0,
@@ -31,24 +33,42 @@ export default function AdminDashboardScreen() {
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch Rooms
-      const roomsRes = await fetch(`${API_BASE_URL}/kamar`);
-      const roomsJson = await roomsRes.json();
+      // 1. Ambil Profil Admin untuk mengetahui cabang tempatnya bertugas
+      const profileRes = await fetch(`${API_BASE_URL}/users/profile`, {
+        headers: { 'Authorization': `Bearer ${globalState.token}` }
+      });
+      const profileJson = await profileRes.json();
+      const profileData = profileJson.data || {};
+      setAdminProfile(profileData);
+
+      const cabangId = profileData.cabang?.idCabang || profileData.cabang?.id;
+
+      // 2. Ambil data Kamar khusus untuk cabang admin tersebut (Isolasi Data FR-006)
+      let rooms = [];
+      if (cabangId) {
+        const roomsRes = await fetch(`${API_BASE_URL}/kamar/cabang/${cabangId}`);
+        const roomsJson = await roomsRes.json();
+        rooms = roomsJson.data || [];
+      } else {
+        // Fallback jika tidak ada cabang spesifik
+        const roomsRes = await fetch(`${API_BASE_URL}/kamar`);
+        const roomsJson = await roomsRes.json();
+        rooms = roomsJson.data || [];
+      }
       
-      // Fetch Transactions
+      // 3. Ambil data Transaksi (Otomatis difilter oleh backend berdasarkan token admin)
       const transRes = await fetch(`${API_BASE_URL}/transaksi`, {
         headers: { 'Authorization': `Bearer ${globalState.token}` }
       });
       const transJson = await transRes.json();
-
-      const rooms = roomsJson.data || [];
       const transactions = transJson.data || [];
 
-      const available = rooms.filter((r: Kamar) => r.status?.toUpperCase() === 'TERSEDIA').length;
-      const occupied = rooms.filter((r: Kamar) => r.status?.toUpperCase() === 'TERISI').length;
+      // Hitung Statistik
+      const available = rooms.filter((r: Kamar) => (r.statusKetersediaan || r.status || '').toUpperCase() === 'TERSEDIA').length;
+      const occupied = rooms.filter((r: Kamar) => (r.statusKetersediaan || r.status || '').toUpperCase() === 'PENUH').length;
       
-      // Calculate unique tenants from transactions
-      const uniqueTenants = new Set(transactions.map((t: any) => t.penyewa?.idPenyewa)).size;
+      // Hitung penyewa unik dari transaksi yang lunas atau aktif
+      const uniqueTenants = new Set(transactions.map((t: any) => t.penyewa?.idUser || t.penyewa?.idPenyewa)).size;
 
       setStats({
         totalRooms: rooms.length,
@@ -57,19 +77,23 @@ export default function AdminDashboardScreen() {
         totalTenants: uniqueTenants || 0
       });
 
+      // Tampilkan aktivitas transaksi terbaru
       setRecentActivity(transactions.slice(0, 4).map((t: any) => ({
         id: t.idTransaksi,
-        title: `${t.penyewa?.nama || 'Someone'} paid rent for Kamar ${t.kamar?.nomorKamar || '?'}`,
-        time: 'Recently',
+        title: `${t.penyewa?.nama || 'Seseorang'} membayar sewa Kamar ${t.kamar?.nomorKamar || '?'}`,
+        time: t.tanggalTransaksi || 'Baru Saja',
         type: t.statusBayar === 'LUNAS' ? 'payment' : 'pending'
       })));
 
     } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+      console.error('Error fetching admin dashboard data:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  const userInitials = (globalState.namaLengkap || globalState.email || 'A')
+    .split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
   if (loading) {
     return (
@@ -85,38 +109,52 @@ export default function AdminDashboardScreen() {
       {/* Top App Bar */}
       <View className="px-6 pb-4 flex-row justify-between items-center z-50">
         <View className="flex-row items-center gap-3">
-          <Image 
-            source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC-QOLuQcyB3qq4LOXq_XpyjC4-KY4_qB88rawLA4BM3LlCHW84fM_qnvLfrIOn6JfvTmJNp4TVie31WeBwl_rCCxUD9chphnLjIdZkTkV5TrcVDAS6GN3-4O4L-OxAnXDPmGWv-9KU1aIGhc3iKSSGmew3U8bUQ7SeLW-M_UeQDwQtrI1CGNZUcUnBju9gCdDbCywVugDIvna74g4mi9gL2NfYa1u9nlUqqAV1sVimdUCgu1i7Gq1akutfIO1gtcAsgd4OGFba1cE' }}
-            className="w-10 h-10 rounded-full border-2 border-surface-container-low"
-          />
-          <Text className="font-black text-2xl text-indigo-700 tracking-tighter">The Estate Admin</Text>
+          {globalState.foto ? (
+            <Image 
+              source={{ uri: globalState.foto }}
+              className="w-10 h-10 rounded-full border-2 border-surface-container-low"
+            />
+          ) : (
+            <View className="w-10 h-10 rounded-full bg-primary-container items-center justify-center border border-outline-variant/30">
+              <Text className="text-on-primary-container font-bold text-xs">{userInitials}</Text>
+            </View>
+          )}
+          <Text className="font-black text-2xl text-black tracking-tighter">Admin Cabang</Text>
         </View>
 
-        <TouchableOpacity className="p-2 rounded-xl text-indigo-600 hover:bg-indigo-50 active:scale-95">
+        <TouchableOpacity 
+          onPress={() => router.push('/notifications' as any)}
+          className="p-2 rounded-xl text-indigo-600 hover:bg-indigo-50 active:scale-95"
+        >
           <MaterialIcons name="notifications" size={24} color="#4f46e5" />
         </TouchableOpacity>
       </View>
+      <View className="bg-surface-container-high/50 h-[1px] w-full" />
 
       <ScrollView 
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }} // Space for Bottom Nav
+        contentContainerStyle={{ paddingBottom: 120 }} 
         className="px-6 mt-4 flex-1"
       >
         
         {/* Header Section */}
         <View className="mb-8">
-          <Text className="font-black text-[28px] leading-tight text-on-surface">Overview</Text>
-          <Text className="text-[15px] text-on-surface-variant mt-1">Here is a quick snapshot of your properties today.</Text>
+          <Text className="font-black text-[28px] leading-tight text-on-surface">Dasbor</Text>
+          <Text className="text-[15px] text-on-surface-variant mt-1">
+            {adminProfile?.cabang?.namaCabang 
+              ? `Ringkasan properti di ${adminProfile.cabang.namaCabang}` 
+              : 'Ringkasan properti yang Anda kelola hari ini.'}
+          </Text>
         </View>
 
         {/* Summary Cards */}
         <View className="flex-row flex-wrap justify-between gap-y-4 mb-8">
           
           {/* Total Rooms */}
-          <View className="w-[48%] bg-surface-container-lowest rounded-xl p-5 shadow-sm relative overflow-hidden">
+          <View className="w-[48%] bg-surface-container-lowest rounded-xl p-5 shadow-sm border border-outline-variant/10">
             <View className="flex-row justify-between items-start z-10">
               <View>
-                <Text className="text-[11px] text-on-surface-variant font-semibold uppercase tracking-wider mb-1">Total Rooms</Text>
+                <Text className="text-[11px] text-on-surface-variant font-bold uppercase tracking-wider mb-1">Total Kamar</Text>
                 <Text className="font-extrabold text-2xl text-on-surface tracking-tight">{stats.totalRooms}</Text>
               </View>
               <View className="p-2 bg-[#e2dfff] rounded-lg">
@@ -126,36 +164,36 @@ export default function AdminDashboardScreen() {
           </View>
 
           {/* Available */}
-          <View className="w-[48%] bg-surface-container-lowest rounded-xl p-5 shadow-sm relative overflow-hidden">
+          <View className="w-[48%] bg-surface-container-lowest rounded-xl p-5 shadow-sm border border-outline-variant/10">
             <View className="flex-row justify-between items-start z-10">
               <View>
-                <Text className="text-[11px] text-on-surface-variant font-semibold uppercase tracking-wider mb-1">Available</Text>
+                <Text className="text-[11px] text-on-surface-variant font-bold uppercase tracking-wider mb-1">Tersedia</Text>
                 <Text className="font-extrabold text-2xl text-on-surface tracking-tight">{stats.availableRooms}</Text>
               </View>
-              <View className="p-2 bg-[#6df5e1] rounded-lg">
+              <View className="p-2 bg-[#e7f3ef] rounded-lg">
                 <MaterialIcons name="vpn-key" size={20} color="#006b5f" />
               </View>
             </View>
           </View>
 
           {/* Occupied */}
-          <View className="w-[48%] bg-surface-container-lowest rounded-xl p-5 shadow-sm relative overflow-hidden">
+          <View className="w-[48%] bg-surface-container-lowest rounded-xl p-5 shadow-sm border border-outline-variant/10">
             <View className="flex-row justify-between items-start z-10">
               <View>
-                <Text className="text-[11px] text-on-surface-variant font-semibold uppercase tracking-wider mb-1">Occupied</Text>
+                <Text className="text-[11px] text-on-surface-variant font-bold uppercase tracking-wider mb-1">Terisi</Text>
                 <Text className="font-extrabold text-2xl text-on-surface tracking-tight">{stats.occupiedRooms}</Text>
               </View>
-              <View className="p-2 bg-[#dbd7ff] rounded-lg">
-                <MaterialIcons name="meeting-room" size={20} color="#3d37a9" />
+              <View className="p-2 bg-[#ffdad6] rounded-lg">
+                <MaterialIcons name="meeting-room" size={20} color="#ba1a1a" />
               </View>
             </View>
           </View>
 
           {/* Total Tenants */}
-          <View className="w-[48%] bg-surface-container-lowest rounded-xl p-5 shadow-sm relative overflow-hidden">
+          <View className="w-[48%] bg-surface-container-lowest rounded-xl p-5 shadow-sm border border-outline-variant/10">
             <View className="flex-row justify-between items-start z-10">
               <View>
-                <Text className="text-[11px] text-on-surface-variant font-semibold uppercase tracking-wider mb-1">Tenants</Text>
+                <Text className="text-[11px] text-on-surface-variant font-bold uppercase tracking-wider mb-1">Penyewa</Text>
                 <Text className="font-extrabold text-2xl text-on-surface tracking-tight">{stats.totalTenants}</Text>
               </View>
               <View className="p-2 bg-[#e2dfff] rounded-lg">
@@ -165,42 +203,23 @@ export default function AdminDashboardScreen() {
           </View>
         </View>
 
-        {/* Occupancy Trends */}
-        <View className="bg-surface-container-low rounded-xl p-5 flex-col gap-4 mb-8">
-          <View className="flex-row justify-between items-center">
-            <Text className="font-bold text-[20px] text-on-surface">Occupancy Trends</Text>
-            <TouchableOpacity>
-              <Text className="text-primary text-xs font-semibold">View Report</Text>
-            </TouchableOpacity>
-          </View>
-          <View className="bg-surface-container-lowest rounded-xl min-h-[200px] shadow-sm flex items-center justify-center relative overflow-hidden">
-            <LinearGradient
-              colors={['rgba(79,70,229,0.15)', 'transparent']}
-              className="absolute bottom-0 left-0 w-full h-3/4"
-            />
-            <View className="bg-surface-container-lowest/80 px-4 py-2 rounded-lg border border-outline-variant/20">
-              <Text className="text-on-surface-variant text-sm">Interactive Chart Area</Text>
-            </View>
-          </View>
-        </View>
-
         {/* Recent Activity */}
-        <View className="bg-surface-container-lowest rounded-xl p-5 shadow-sm flex-col gap-4">
-          <Text className="font-bold text-[20px] text-on-surface">Recent Activity</Text>
+        <View className="bg-surface-container-lowest rounded-xl p-5 shadow-sm border border-outline-variant/10 flex-col gap-4">
+          <Text className="font-bold text-[20px] text-on-surface">Aktivitas Terbaru</Text>
           
           <View className="flex-col gap-0">
             {recentActivity.length > 0 ? (
               recentActivity.map((activity, index) => (
                 <View key={activity.id || index} className="flex-row gap-4 py-4 border-b border-outline-variant/15">
-                  <View className={`w-10 h-10 rounded-full items-center justify-center ${activity.type === 'payment' ? 'bg-secondary-container' : 'bg-tertiary-container'}`}>
+                  <View className={`w-10 h-10 rounded-full items-center justify-center ${activity.type === 'payment' ? 'bg-[#e7f3ef]' : 'bg-[#e2dfff]'}`}>
                     <MaterialIcons 
                       name={activity.type === 'payment' ? 'payments' : 'pending-actions'} 
                       size={18} 
-                      color={activity.type === 'payment' ? '#006f64' : '#3d37a9'} 
+                      color={activity.type === 'payment' ? '#006b5f' : '#3525cd'} 
                     />
                   </View>
                   <View className="flex-1 justify-center">
-                    <Text className="text-[14px] text-on-surface leading-snug">
+                    <Text className="text-[14px] font-semibold text-on-surface leading-snug">
                       {activity.title}
                     </Text>
                     <Text className="text-[11px] text-on-surface-variant mt-0.5">{activity.time}</Text>
@@ -209,7 +228,7 @@ export default function AdminDashboardScreen() {
               ))
             ) : (
               <View className="py-10 items-center">
-                <Text className="text-on-surface-variant text-sm">No recent activity</Text>
+                <Text className="text-on-surface-variant text-sm italic">Belum ada aktivitas transaksi.</Text>
               </View>
             )}
           </View>

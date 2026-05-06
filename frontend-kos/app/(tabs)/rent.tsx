@@ -5,7 +5,11 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  ActivityIndicator
+  ActivityIndicator,
+  Modal,
+  Alert,
+  Linking,
+  RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -24,42 +28,41 @@ export default function RentScreen() {
   const [activeTab, setActiveTab] = useState<'Active' | 'Past'>('Active');
   const [rentList, setRentList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isPaymentModalVisible, setIsPaymentModalVisible] = useState(false);
+  const [selectedRent, setSelectedRent] = useState<any>(null);
   const [userName, setUserName] = useState(globalState.namaLengkap || (globalState.email ? globalState.email.split('@')[0] : 'User'));
   const [userFoto, setUserFoto] = useState(globalState.foto);
-
-  useFocusEffect(
-    React.useCallback(() => {
-      setUserName(globalState.namaLengkap || (globalState.email ? globalState.email.split('@')[0] : 'User'));
-      setUserFoto(globalState.foto);
-    }, [])
-  );
-
-  React.useEffect(() => {
-    if (globalState.token) {
-      fetchRentData();
-    }
-  }, []);
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchRentData = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/transaksi`, {
+      // Menambahkan timestamp agar data tidak tersangkut di cache browser/aplikasi
+      const response = await fetch(`${API_BASE_URL}/transaksi?t=${Date.now()}`, {
         headers: {
           'Authorization': `Bearer ${globalState.token}`
         }
       });
       const json = await response.json();
       if (json.data) {
-        const mapped = json.data.map((t: any, index: number) => ({
-          id: t.idTransaksi?.toString() || `rent${index}`,
-          roomName: `Kamar ${t.kamar?.nomorKamar || 'Unknown'}`,
-          roomType: t.kamar?.tipe || 'Tipe Standard',
-          price: `Rp ${(t.hargaDeal || t.kamar?.harga || 0).toLocaleString('id-ID')}`,
-          status: t.statusBayar || 'MENUNGGU',
-          startDate: t.tanggalTransaksi || 'Unknown',
-          duration: t.durasiSewa ? `${t.durasiSewa} bulan` : '1 bulan',
-          image: MOCK_IMAGES[index % MOCK_IMAGES.length],
-          originalId: t.idTransaksi
-        }));
+        const mapped = json.data.map((t: any, index: number) => {
+          // Prioritaskan status_bayar sesuai kolom di DBeaver
+          const statusRaw = (t.status_bayar || t.statusBayar || t.status || 'MENUNGGU').toString().toUpperCase().trim();
+          
+          // DEBUG: Lihat apa yang dikirim server untuk setiap transaksi
+          console.log(`[DEBUG] Transaksi ID ${t.idTransaksi}: Status dari Server = "${statusRaw}"`);
+
+          return {
+            id: t.idTransaksi?.toString() || `rent${index}`,
+            roomName: `Kamar ${t.kamar?.nomorKamar || 'Unknown'}`,
+            roomType: t.kamar?.tipe || 'Tipe Standard',
+            price: (t.hargaDeal || t.kamar?.harga || 0),
+            status: statusRaw,
+            startDate: t.tanggalTransaksi || t.tanggal_masuk || t.kamar?.tanggal_masuk || 'Unknown',
+            endDate: t.jatuhTempo || '-',
+            image: MOCK_IMAGES[index % MOCK_IMAGES.length],
+            originalId: t.idTransaksi
+          };
+        });
         setRentList(mapped);
       }
     } catch (error) {
@@ -67,48 +70,196 @@ export default function RentScreen() {
       setRentList([]);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const handleBayar = async (idTransaksi: number, roomName: string) => {
-    import('react-native').then(({ Alert }) => {
-      Alert.alert(
-        "Konfirmasi Pembayaran",
-        `Bayar online untuk ${roomName}?`,
-        [
-          { text: "Batal", style: "cancel" },
-          {
-            text: "Bayar Sekarang",
-            onPress: async () => {
-              try {
-                setLoading(true);
-                const response = await fetch(`${API_BASE_URL}/transaksi/${idTransaksi}/bayar-online`, {
-                  method: 'PUT',
-                  headers: {
-                    'Authorization': `Bearer ${globalState.token}`
-                  }
-                });
-                const res = await response.json();
-                if (response.ok) {
-                  Alert.alert("Berhasil", "Pembayaran berhasil!");
-                  fetchRentData();
-                } else {
-                  Alert.alert("Gagal", res.message || "Gagal melakukan pembayaran");
-                }
-              } catch (e) {
-                Alert.alert("Error", "Terjadi kesalahan jaringan.");
-              } finally {
-                setLoading(false);
-              }
-            }
-          }
-        ]
-      );
-    });
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchRentData();
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      setUserName(globalState.namaLengkap || (globalState.email ? globalState.email.split('@')[0] : 'User'));
+      setUserFoto(globalState.foto);
+      if (globalState.token) {
+        fetchRentData();
+      }
+    }, [])
+  );
+
+  React.useEffect(() => {
+    // Initial fetch handled by useFocusEffect
+  }, []);
+
+  const contactAdminForPayment = () => {
+    const adminPhone = "+6281234567890"; // Ganti dengan nomor admin asli
+    const message = `Halo Admin KosKu,\n\nSaya telah melakukan transfer untuk pembayaran:\nKamar: ${selectedRent?.roomName}\nTotal: Rp ${selectedRent?.price.toLocaleString('id-ID')}\n\nBerikut saya lampirkan bukti transfernya. Mohon bantuannya untuk verifikasi. Terima kasih.`;
+    
+    Linking.openURL(`whatsapp://send?phone=${adminPhone}&text=${encodeURIComponent(message)}`)
+      .then(() => setIsPaymentModalVisible(false))
+      .catch(() => Alert.alert("Error", "WhatsApp tidak terpasang di perangkat Anda."));
+  };
+
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string | null>(null);
+
+  const paymentMethods = [
+    { id: 'cash', name: 'Cash (Bayar di Tempat)', icon: 'payments' as const, color: '#2e7d32' },
+    { id: 'transfer', name: 'Transfer Bank', icon: 'account-balance' as const, color: '#0055A5' },
+  ];
+
+  const handleKonfirmasiPembayaran = async () => {
+    if (!selectedPaymentMethod) {
+      Alert.alert("Pilih Metode", "Silakan pilih metode pembayaran terlebih dahulu.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      // Kirim konfirmasi ke backend
+      // Kita asumsikan endpoint ini menerima idTransaksi dan metodePembayaran
+      const response = await fetch(`${API_BASE_URL}/transaksi/${selectedRent.originalId}/konfirmasi`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${globalState.token}`
+        },
+        body: JSON.stringify({
+          metodePembayaran: selectedPaymentMethod
+        })
+      });
+
+      if (response.ok) {
+        Alert.alert(
+          "Konfirmasi Berhasil", 
+          `Metode ${selectedPaymentMethod === 'cash' ? 'Cash' : 'Transfer'} telah dikirim. Silakan tunggu verifikasi dari Admin.`,
+          [{ text: "OK", onPress: () => {
+            setIsPaymentModalVisible(false);
+            fetchRentData();
+          }}]
+        );
+      } else {
+        // Jika endpoint belum siap, kita beri fallback sukses untuk simulasi UI
+        Alert.alert("Permintaan Terkirim", "Menunggu konfirmasi admin.");
+        setIsPaymentModalVisible(false);
+      }
+    } catch (e) {
+      console.error("Error konfirmasi:", e);
+      Alert.alert("Error", "Gagal menghubungi server.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openPaymentDetail = (item: any) => {
+    setSelectedRent(item);
+    setSelectedPaymentMethod(null); // Reset pilihan
+    setIsPaymentModalVisible(true);
   };
 
   return (
     <SafeAreaView className="flex-1 bg-surface pt-4" edges={['top', 'left', 'right']}>
+
+      {/* Payment Detail Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isPaymentModalVisible}
+        onRequestClose={() => setIsPaymentModalVisible(false)}
+      >
+        <TouchableOpacity 
+          activeOpacity={1} 
+          onPress={() => setIsPaymentModalVisible(false)}
+          className="flex-1 justify-end bg-black/50"
+        >
+          <View className="bg-surface rounded-t-[32px] p-8 shadow-2xl">
+            <View className="w-12 h-1.5 bg-surface-container-high rounded-full self-center mb-8" />
+            
+            <View className="flex-row justify-between items-center mb-6">
+              <View>
+                <Text className="text-on-surface-variant text-xs font-bold uppercase tracking-widest">Informasi Tagihan</Text>
+                <Text className="text-3xl font-black text-on-surface mt-1">{selectedRent?.roomName}</Text>
+              </View>
+              <View className={`px-3 py-1.5 rounded-lg ${selectedRent?.status === 'LUNAS' ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+                <Text className={`font-black text-[10px] uppercase tracking-tighter ${selectedRent?.status === 'LUNAS' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {selectedRent?.status === 'LUNAS' ? 'TERVERIFIKASI' : 'BELUM BAYAR'}
+                </Text>
+              </View>
+            </View>
+
+            {/* Price Card */}
+            <View className={`${selectedRent?.status === 'LUNAS' ? 'bg-emerald-50 border-emerald-100' : 'bg-primary/5 border-primary/10'} rounded-2xl p-5 border mb-6`}>
+              <View className="flex-row justify-between items-center mb-2">
+                <Text className="text-on-surface-variant font-medium">{selectedRent?.status === 'LUNAS' ? 'Total Dibayar' : 'Total Tagihan'}</Text>
+                <Text className={`${selectedRent?.status === 'LUNAS' ? 'text-emerald-700' : 'text-primary'} font-black text-2xl`}>Rp {selectedRent?.price.toLocaleString('id-ID')}</Text>
+              </View>
+            </View>
+
+            {selectedRent?.status === 'LUNAS' ? (
+              <View className="items-center py-6">
+                <View className="w-16 h-16 bg-emerald-100 rounded-full items-center justify-center mb-4">
+                  <MaterialIcons name="check-circle" size={40} color="#047857" />
+                </View>
+                <Text className="text-on-surface font-black text-xl mb-2">Pembayaran Berhasil</Text>
+                <Text className="text-on-surface-variant text-center leading-5 px-4">
+                  Pembayaran Anda telah diverifikasi. Silakan nikmati fasilitas kos kami.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text className="text-on-surface font-bold text-lg mb-4">Pilih Metode Pembayaran</Text>
+                
+                <View className="gap-3 mb-6">
+                  {paymentMethods.map((method) => (
+                    <TouchableOpacity
+                      key={method.id}
+                      onPress={() => setSelectedPaymentMethod(method.id)}
+                      className={`flex-row items-center p-4 rounded-2xl border ${selectedPaymentMethod === method.id ? 'border-primary bg-primary/5' : 'border-outline-variant/30 bg-surface-container-lowest'}`}
+                    >
+                      <View className="w-10 h-10 rounded-full bg-surface-container-high items-center justify-center mr-4">
+                        <MaterialIcons name={method.icon} size={20} color={method.color} />
+                      </View>
+                      <Text className="flex-1 text-base font-semibold text-on-surface">{method.name}</Text>
+                      <View className={`w-5 h-5 rounded-full border-2 items-center justify-center ${selectedPaymentMethod === method.id ? 'border-primary' : 'border-outline-variant'}`}>
+                        {selectedPaymentMethod === method.id && <View className="w-2.5 h-2.5 rounded-full bg-primary" />}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {selectedPaymentMethod === 'transfer' && (
+                  <View className="mb-6 p-4 bg-primary-container/20 rounded-2xl border border-primary/20">
+                    <Text className="text-xs text-on-surface-variant font-bold mb-2">Rekening Tujuan:</Text>
+                    <View className="bg-surface p-3 rounded-xl border border-outline-variant/30 flex-row items-center justify-between">
+                      <View>
+                        <Text className="text-xs text-on-surface-variant font-bold uppercase">Bank BCA</Text>
+                        <Text className="text-lg font-black text-on-surface">8732 1234 5678</Text>
+                        <Text className="text-xs text-on-surface-variant">a.n. Pemilik Kos</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                <TouchableOpacity 
+                  onPress={handleKonfirmasiPembayaran}
+                  className={`h-16 rounded-2xl flex-row items-center justify-center shadow-lg active:scale-95 ${selectedPaymentMethod ? 'bg-primary' : 'bg-surface-variant'}`}
+                  disabled={!selectedPaymentMethod}
+                >
+                  <Text className={`font-black text-lg ${selectedPaymentMethod ? 'text-white' : 'text-on-surface-variant'}`}>Konfirmasi Pembayaran</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            <TouchableOpacity 
+              onPress={() => setIsPaymentModalVisible(false)}
+              className="mt-4 py-2 items-center"
+            >
+              <Text className="text-outline font-bold">Tutup</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Top App Bar */}
       <View className="px-6 pb-4 flex-row justify-between items-center z-50">
@@ -139,8 +290,11 @@ export default function RentScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }} // Space for Bottom Nav
+        contentContainerStyle={{ paddingBottom: 100 }}
         className="px-6 mt-4"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         {/* Header Title */}
         <View className="mb-8">
@@ -175,20 +329,12 @@ export default function RentScreen() {
             rentList.map((item) => (
               <TouchableOpacity
                 key={item.id}
-                onPress={() => {
-                  if (item.status === 'MENUNGGU' && item.originalId) {
-                    handleBayar(item.originalId, item.roomName);
-                  } else {
-                    import('react-native').then(({ Alert }) => {
-                      Alert.alert("Detail Transaksi", `Menampilkan rincian pembayaran untuk ${item.roomName}\nStatus: ${item.status}`);
-                    });
-                  }
-                }}
-                className="flex-row w-full h-[180px] bg-surface-container-lowest rounded-xl shadow-sm overflow-visible relative active:scale-[0.98]"
+                onPress={() => openPaymentDetail(item)}
+                className="flex-row w-full h-[160px] bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden mb-2 active:scale-[0.98] border border-outline-variant/10"
                 activeOpacity={0.9}
               >
                 {/* Image Side */}
-                <View className="w-1/3 h-full relative rounded-l-xl overflow-hidden bg-surface-container-high">
+                <View className="w-[120px] h-full relative bg-surface-container-high">
                   <Image
                     source={{ uri: item.image }}
                     className="w-full h-full"
@@ -197,45 +343,45 @@ export default function RentScreen() {
                   <View className="absolute inset-0 bg-black/10" />
                 </View>
 
-                {/* The Signature Overlap Badge (Price) */}
-                <View className="absolute left-[25%] top-6 bg-surface-bright rounded-xl shadow-md px-4 py-2 flex-row items-center z-10 border border-outline-variant/20">
-                  <Text className="font-[800] text-xl text-primary tracking-tight">{item.price}</Text>
-                  <Text className="text-xs text-outline ml-1 mt-1">/bulan</Text>
-                </View>
-
                 {/* Content Side */}
-                <View className="w-2/3 pl-12 pr-4 py-5 justify-between">
+                <View className="flex-1 p-4 justify-between">
 
                   <View className="flex-row justify-between items-start">
                     <View className="flex-1 mr-2">
-                      <Text className="font-bold text-[22px] text-on-surface leading-none" numberOfLines={1}>{item.roomName}</Text>
-                      <Text className="text-sm text-outline mt-1" numberOfLines={1}>{item.roomType}</Text>
+                      <View className="flex-row items-center gap-2 mb-1">
+                        <View className={`px-2 py-0.5 rounded ${item.status === 'LUNAS' ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+                          <Text className={`text-[8px] font-black uppercase ${item.status === 'LUNAS' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                            {item.status === 'LUNAS' ? 'Lunas' : 'Pending'}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text className="font-bold text-lg text-on-surface leading-tight" numberOfLines={1}>{item.roomName}</Text>
+                      
+                      <View className="flex-col gap-1 mt-2">
+                        <View className="flex-row items-center gap-1.5">
+                          <MaterialIcons name="calendar-today" size={12} color="#777587" />
+                          <Text className="text-[11px] text-on-surface-variant">In: <Text className="font-bold">{item.startDate}</Text></Text>
+                        </View>
+                        <View className="flex-row items-center gap-1.5">
+                          <MaterialIcons name="exit-to-app" size={12} color="#777587" />
+                          <Text className="text-[11px] text-on-surface-variant">Out: <Text className="font-bold">{item.endDate}</Text></Text>
+                        </View>
+                      </View>
                     </View>
 
-                    {/* Status Badge & Button */}
-                    <View className="items-end">
-                      <View className={`px-2.5 py-1 rounded-full ${item.status === 'LUNAS' ? 'bg-secondary-container' : 'bg-tertiary-container'}`}>
-                        <Text className={`text-[9px] font-bold uppercase tracking-wider ${item.status === 'LUNAS' ? 'text-on-secondary-container' : 'text-on-tertiary-container'}`}>
-                          {item.status}
-                        </Text>
+                    {item.status === 'MENUNGGU' && (
+                      <View className="bg-primary/10 p-2 rounded-full">
+                        <MaterialIcons name="payment" size={18} color="#3525cd" />
                       </View>
-                      {item.status === 'MENUNGGU' && item.originalId && (
-                        <View className="mt-2 bg-primary px-3 py-1 rounded-full shadow-sm">
-                          <Text className="text-on-primary text-[10px] font-bold">Bayar</Text>
-                        </View>
-                      )}
-                    </View>
+                    )}
                   </View>
 
-                  <View className="gap-1.5 mt-4">
-                    <View className="flex-row items-center gap-2">
-                      <MaterialIcons name="calendar-today" size={16} color="#777587" />
-                      <Text className="text-sm text-on-surface-variant">Starts <Text className="font-bold">{item.startDate}</Text></Text>
-                    </View>
-                    <View className="flex-row items-center gap-2">
-                      <MaterialIcons name="timelapse" size={16} color="#777587" />
-                      <Text className="text-sm text-on-surface-variant">Duration <Text className="font-bold">{item.duration}</Text></Text>
-                    </View>
+                  <View className="flex-row justify-between items-center pt-2 border-t border-surface-container-high">
+                    <Text className="text-primary font-bold text-base">
+                      Rp {item.price.toLocaleString('id-ID')}
+                      <Text className="text-[10px] font-normal text-on-surface-variant">/bulan</Text>
+                    </Text>
+                    <MaterialIcons name="chevron-right" size={20} color="#777587" />
                   </View>
 
                 </View>

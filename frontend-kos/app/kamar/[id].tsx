@@ -6,6 +6,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 
 import { Kamar } from '@/types/types';
 import { API_BASE_URL } from '@/constants/config';
+import { globalState } from '../_globalState';
 
 const { width } = Dimensions.get('window');
 
@@ -165,8 +166,6 @@ export default function DetailKamarScreen() {
             </View>
           </View>
 
-          <Text className="text-on-surface-variant text-sm mb-6 font-medium">Lantai 1 • Ukuran 3x4m</Text>
-
           {/* Price Display */}
           <View className="bg-surface-container-low p-5 rounded-2xl border border-outline-variant/30 flex-row items-center justify-between">
             <View>
@@ -177,8 +176,8 @@ export default function DetailKamarScreen() {
             </View>
           </View>
 
-          {/* If Rented (Not Available) */}
-          {!isAvailable && (
+          {/* If Rented (Not Available) - Admin/Owner Only */}
+          {!isAvailable && (globalState.role === 'ROLE_ADMIN' || globalState.role === 'ROLE_OWNER') && (
             <View className="bg-error-container/30 p-5 rounded-2xl border border-error/10 mt-4">
               <View className="mb-3">
                 <Text className="text-xs text-on-surface-variant font-bold uppercase mb-1">Disewa Oleh</Text>
@@ -200,10 +199,17 @@ export default function DetailKamarScreen() {
         <View className="px-6 py-4">
           <Text className="text-xl font-bold text-on-surface mb-4">Fasilitas Kamar</Text>
           <View className="flex-row flex-wrap justify-between">
-            {/* Box 1 */}
+            {/* Box 1 - Dynamic AC/Non-AC */}
             <View className="w-[31%] aspect-square bg-surface-container-lowest p-3 rounded-2xl flex-col items-center justify-center border border-outline-variant/30 shadow-sm mb-3">
-              <MaterialIcons name="ac-unit" size={28} color="#3525cd" className="mb-2" />
-              <Text className="text-xs font-semibold text-on-surface-variant text-center">AC</Text>
+              <MaterialIcons
+                name={kamar.fasilitas && /\bAC\b/i.test(kamar.fasilitas) ? "ac-unit" : "air"}
+                size={28}
+                color="#3525cd"
+                className="mb-2"
+              />
+              <Text className="text-xs font-semibold text-on-surface-variant text-center">
+                {kamar.fasilitas && /\bAC\b/i.test(kamar.fasilitas) ? 'AC' : 'Non-AC'}
+              </Text>
             </View>
             {/* Box 2 */}
             <View className="w-[31%] aspect-square bg-surface-container-lowest p-3 rounded-2xl flex-col items-center justify-center border border-outline-variant/30 shadow-sm mb-3">

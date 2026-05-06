@@ -35,8 +35,7 @@ export default function CheckoutScreen() {
   };
 
   const hargaInt = parseInt(price as string) || 0;
-  const adminFee = 5000;
-  const totalHarga = hargaInt + adminFee;
+  const totalHarga = hargaInt;
 
   return (
     <View className="flex-1 bg-surface">
@@ -75,17 +74,6 @@ export default function CheckoutScreen() {
             <View className="h-[1px] bg-outline-variant/30 my-3" />
             
             <View className="flex-row justify-between items-center mb-2">
-              <Text className="text-sm text-on-surface-variant">Harga Sewa</Text>
-              <Text className="text-sm text-on-surface font-semibold">Rp {hargaInt.toLocaleString('id-ID')}</Text>
-            </View>
-            <View className="flex-row justify-between items-center mb-2">
-              <Text className="text-sm text-on-surface-variant">Biaya Layanan</Text>
-              <Text className="text-sm text-on-surface font-semibold">Rp {adminFee.toLocaleString('id-ID')}</Text>
-            </View>
-            
-            <View className="h-[1px] bg-outline-variant/30 my-3" />
-            
-            <View className="flex-row justify-between items-center">
               <Text className="text-base text-on-surface font-bold">Total Pembayaran</Text>
               <Text className="text-xl font-black text-primary">Rp {totalHarga.toLocaleString('id-ID')}</Text>
             </View>

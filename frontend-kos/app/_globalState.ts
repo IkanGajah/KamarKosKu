@@ -3,5 +3,6 @@ export const globalState = {
   token: '',
   role: '',
   namaLengkap: '',
-  foto: ''
+  foto: '',
+  noTelepon: ''
 };

@@ -8,90 +8,87 @@ import {
   Image,
   Dimensions,
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
+  StatusBar
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { API_BASE_URL } from '@/constants/config';
 import { Kamar } from '@/types/types';
-import { globalState } from '../_globalState';
-
-const { width } = Dimensions.get('window');
 
 const MOCK_IMAGES = [
   "https://lh3.googleusercontent.com/aida-public/AB6AXuDxqro65wdqMJCGELbpTK2HPlNmzKiEwWj-175Ry_62ZyjHbh69ufz3Ui3mdnwCZ-wf2rD3csCqmLrvpdAQK5qrs8EFmKY63gUJWw09rdFdgembiQCkdBqIdEIMYb5Cnr-_FLQvaLKcN2Cxduy839CZ11uXEHIjX9gJQZQo9KXtlKm16o2xDAOzzOWdw8z2hBAxHEK0MswcAu6-tbgt7VAQcIgkquHOQHTER2LcngeE3Gw868DmomyNNSk0Ny7lWizBVAJRygj_LC8",
   "https://lh3.googleusercontent.com/aida-public/AB6AXuCnaIDLGyfCnAhE6WcKF-nnmJyZZEtdT8SPEF9rAl906E8AvQhSRWALAS2xqnzpC4TufkgssCQ_uz55-X9rgfIvTknB9tRcIzBRc4GliNDvsBelN2tTSXCyrXZJMUlFPrVWTSbjsGMCzRvqsXSi8b3UCG9eQxnv3ZERTgjCqVFMIe1ywpJZcNAfRiuLoxt7w7g1XOVlNMM1HwcCkgdztoVkLthHRKQodThFKxPNAdYtjhY0tQRh9PCelKqWb8YE9Wxx8KisGRyqN_I",
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuBzBZ-XRGDxmwRJAiOwBJJxiKFYOF3zKNO6yb5FwojhMAa3G2jZCn018YL1_aMbLtTJWphhfBXUq3ZoHOMfAJi6vTASJzuvPa142aScLBJpUyWq6UQZN1mppNP45l7h_95qr-k3P_pS6xVl58_lT66f0PIrWsemwQoBYSMmfNytJrEilYtdF2iFlHD7fZDPgx6vcl8tWVdG14bOzQdsoPFZLwV0h6aTu21KlgStWh8i-0BCYrVp-npXAuW2JMwYlu9Lvg8AzxsOeFQ",
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuDnu7qESrAXuSgFuoURlofHC-T7h_O2uHubZNAc4_ICgQkeasLepvx-qx-AQVrILKQK0kM7s728E5VpZ2avEfyA84Pf7CTAqOoJyu920AsnP-oDov2VTx5NDMTPOU0i5FQaUhu9U57thx74nH3auSK8Af7_WqQoh69f66rB6_RZH1T56kMAvKbo49nwv4WVUQaS31GupyzCY2-hyk445Mp5lKYVKj3CfZxcjXuyH0ry5YpE_QvXN9PgtByp34tgQSYgqmaY7eHcZAM"
+  "https://lh3.googleusercontent.com/aida-public/AB6AXuBzBZ-XRGDxmwRJAiOwBJJxiKFYOF3zKNO6yb5FwojhMAa3G2jZCn018YL1_aMbLtTJWphhfBXUq3ZoHOMfAJi6vTASJzuvPa142aScLBJpUyWq6UQZN1mppNP45l7h_95qr-k3P_pS6xVl58_lT66f0PIrWsemwQoBYSMmfNytJrEilYtdF2iFlHD7fZDPgx6vcl8tWVdG14bOzQdsoPFZLwV0h6aTu21KlgStWh8i-0BCYrVp-npXAuW2JMwYlu9Lvg8AzxsOeFQ"
 ];
 
-export default function AuthenticatedCatalogScreen() {
+export default function GuestHomeScreen() {
   const router = useRouter();
-  const [kamar, setKamar] = useState<Kamar[]>([]);
+  const [kamar, setKamar] = useState<any[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
   const [selectedBranch, setSelectedBranch] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [branchesLoading, setBranchesLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('Semua');
-  const [userName, setUserName] = useState(globalState.namaLengkap || (globalState.email ? globalState.email.split('@')[0] : 'User'));
-  const [userFoto, setUserFoto] = useState(globalState.foto);
-
-  useFocusEffect(
-    React.useCallback(() => {
-      setUserName(globalState.namaLengkap || (globalState.email ? globalState.email.split('@')[0] : 'User'));
-      setUserFoto(globalState.foto);
-    }, [])
-  );
-
-  const greetingName = userName;
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   useEffect(() => {
     fetchInitialData();
   }, []);
 
+  // Re-fetch kamar saat cabang dipilih atau di-reset (skip saat initial load)
+  useEffect(() => {
+    if (isInitialLoad) return;
+    const branchId = selectedBranch ? (selectedBranch.idCabang || selectedBranch.id) : undefined;
+    fetchKamar(branchId);
+  }, [selectedBranch]);
+
   const fetchInitialData = async () => {
     setLoading(true);
+    setBranchesLoading(true);
     await fetchBranches();
     await fetchKamar();
+    setIsInitialLoad(false);
     setLoading(false);
   };
 
   const fetchBranches = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/cabang`, {
-        headers: {
-          'Authorization': `Bearer ${globalState.token}`
-        }
-      });
+      const response = await fetch(`${API_BASE_URL}/cabang`);
+      console.log("[Cabang] HTTP Status:", response.status);
+      if (!response.ok) {
+        console.error("[Cabang] Gagal fetch, status:", response.status);
+        return;
+      }
       const text = await response.text();
       if (!text || text.trim() === "") return;
-
       const json = JSON.parse(text);
-      console.log("Data Cabang:", json);
-      if (json.data) setBranches(json.data);
+      console.log("[Cabang] Data:", json);
+      if (json.data && Array.isArray(json.data)) {
+        setBranches(json.data);
+      }
     } catch (e) {
-      console.error("Error fetching branches:", e);
+      console.error("[Cabang] Error:", e);
+    } finally {
+      setBranchesLoading(false);
     }
   };
 
   const fetchKamar = async (branchId?: number) => {
     try {
       const url = branchId ? `${API_BASE_URL}/kamar/cabang/${branchId}` : `${API_BASE_URL}/kamar`;
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${globalState.token}`
-        }
-      });
+      const response = await fetch(url);
       const text = await response.text();
       if (!text || text.trim() === "") return;
 
       const json = JSON.parse(text);
-      if (json.data) {
+      if (json.data && Array.isArray(json.data)) {
         setKamar(json.data);
       }
     } catch (error) {
-      console.error("Error fetching kamar:", error);
+      console.error("[Kamar] Error:", error);
     }
   };
 
@@ -108,7 +105,6 @@ export default function AuthenticatedCatalogScreen() {
 
   // Map Kamar API to display format
   const getDisplayData = (k: any, index: number) => {
-    // Ambil harga dari properti yang mungkin tersedia
     const rawHarga = k.harga ?? k.hargaSewa ?? 0;
     const numHarga = Number(rawHarga);
 
@@ -127,7 +123,7 @@ export default function AuthenticatedCatalogScreen() {
   };
 
   const filteredKamar = kamar.filter(item => {
-    // 1. Branch Filter
+    // 1. Branch Filter (Client-side fallback)
     if (selectedBranch) {
       const selectedId = selectedBranch.idCabang || selectedBranch.id;
       const itemId = item.cabang?.idCabang || item.cabang?.id;
@@ -139,14 +135,14 @@ export default function AuthenticatedCatalogScreen() {
       (item.fasilitas && item.fasilitas.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (item.cabang?.namaCabang && item.cabang.namaCabang.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (item.cabang?.alamat && item.cabang.alamat.toLowerCase().includes(searchQuery.toLowerCase()));
+
     if (!matchesSearch) return false;
 
     // 3. Category Filter
     if (activeFilter === 'Semua') return true;
-    if (activeFilter === 'AC') return item.fasilitas && /\bAC\b/i.test(item.fasilitas);
-    if (activeFilter === 'KM Dalam') return item.fasilitas && item.fasilitas.toUpperCase().includes('KM DALAM');
     if (activeFilter === 'Tersedia') return (item.status || item.statusKetersediaan)?.toUpperCase() === 'TERSEDIA';
     if (activeFilter === '< 1jt') return (item.harga || item.hargaSewa || 0) < 1000000;
+    if (activeFilter === 'AC') return item.fasilitas && /\bAC\b/i.test(item.fasilitas);
 
     return true;
   });
@@ -156,46 +152,31 @@ export default function AuthenticatedCatalogScreen() {
     branch.alamat?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const displayData = filteredKamar.map((k, i) => getDisplayData(k, i));
+  const displayData = filteredKamar.map((k, index) => getDisplayData(k, index));
   const REKOMENDASI = displayData.slice(0, 2);
   const JELAJAHI = displayData.slice(2);
 
   return (
     <SafeAreaView className="flex-1 bg-surface pt-4" edges={['top', 'left', 'right']}>
+      <StatusBar barStyle="dark-content" />
 
-      {/* Top App Bar */}
+      {/* Header Section for Guest */}
       <View className="px-6 pb-4 flex-row justify-between items-center z-50">
-        <View className="flex-row items-center gap-3">
-          {userFoto ? (
-            <Image
-              source={{ uri: userFoto }}
-              className="w-12 h-12 rounded-full"
-            />
-          ) : (
-            <View className="w-12 h-12 rounded-full bg-primary-container items-center justify-center border border-outline-variant/30">
-              <Text className="text-on-primary-container font-bold text-sm">
-                {userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-              </Text>
-            </View>
-          )}
-          <View>
-            <Text className="text-xs text-on-surface-variant font-medium">Selamat datang kembali</Text>
-            <Text className="text-on-surface font-bold text-base">{greetingName}</Text>
-          </View>
+        <View>
+          <Text className="text-primary font-black text-2xl tracking-tight">KosKu</Text>
+          <Text className="text-on-surface-variant text-xs font-medium">Temukan hunian impianmu</Text>
         </View>
-
         <TouchableOpacity
-          onPress={() => router.push('/notifications' as any)}
-          className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center active:scale-95 shadow-sm"
+          onPress={() => router.push('/login')}
+          className="bg-primary px-4 py-2 rounded-full shadow-sm"
         >
-          <MaterialIcons name="notifications" size={24} color="#3525cd" />
-          <View className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-[#ba1a1a] rounded-full border-2 border-surface-container" />
+          <Text className="text-on-primary font-bold text-xs">Masuk</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
       >
 
         {/* Search & Filters */}
@@ -220,7 +201,7 @@ export default function AuthenticatedCatalogScreen() {
             <View className="flex-row justify-between items-end mb-4">
               <View>
                 <Text className="text-on-surface font-bold text-lg">Pilih Cabang</Text>
-                <Text className="text-outline text-xs">Temukan kenyamanan di lokasi pilihan</Text>
+                <Text className="text-outline text-xs">Lokasi kos yang tersedia</Text>
               </View>
               {selectedBranch && (
                 <TouchableOpacity onPress={() => setSelectedBranch(null)}>
@@ -228,43 +209,64 @@ export default function AuthenticatedCatalogScreen() {
                 </TouchableOpacity>
               )}
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingRight: 20 }}>
-              {filteredBranches.map((branch, index) => {
-                const bId = branch.idCabang || branch.id;
-                const isSelected = selectedBranch && (selectedBranch.idCabang || selectedBranch.id) === bId;
 
-                const availableCount = kamar.filter(k =>
-                  (k.cabang?.idCabang === bId || k.cabang?.id === bId) &&
-                  (k.status || k.statusKetersediaan) === 'TERSEDIA'
-                ).length;
+            {branchesLoading ? (
+              // Skeleton loading untuk cabang
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingRight: 20 }}>
+                {[1, 2, 3].map((i) => (
+                  <View key={i} className="w-40 bg-surface-container-low rounded-2xl overflow-hidden border border-outline-variant/10">
+                    <View className="h-24 bg-surface-container-high" />
+                    <View className="p-3 gap-2">
+                      <View className="h-3 bg-surface-container-high rounded w-3/4" />
+                      <View className="h-2 bg-surface-container-high rounded w-1/2" />
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            ) : branches.length === 0 ? (
+              // Fallback jika API cabang tidak bisa diakses
+              <View className="py-4 px-2">
+                <Text className="text-outline text-sm">Data cabang tidak tersedia saat ini.</Text>
+              </View>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingRight: 20 }}>
+                {filteredBranches.map((branch, index) => {
+                  const bId = branch.idCabang || branch.id;
+                  const isSelected = selectedBranch && (selectedBranch.idCabang || selectedBranch.id) === bId;
 
-                return (
-                  <TouchableOpacity
-                    key={bId || index}
-                    onPress={() => handleBranchSelect(branch)}
-                    className={`w-40 bg-surface-container-low rounded-2xl overflow-hidden border ${isSelected ? 'border-primary' : 'border-outline-variant/10'}`}
-                  >
-                    <View className="h-24 bg-surface-container-high relative">
-                      <Image
-                        source={{ uri: branch.foto || MOCK_IMAGES[index % MOCK_IMAGES.length] }}
-                        className="w-full h-full"
-                      />
-                      <View className="absolute inset-0 bg-black/10" />
-                      <View className="absolute top-2 left-2 px-2 py-1 bg-error-container rounded-full flex-row items-center">
-                        <Text className="text-on-error-container text-[10px] font-bold">Sisa {availableCount} Kamar</Text>
+                  const availableCount = kamar.filter(k =>
+                    (k.cabang?.idCabang === bId || k.cabang?.id === bId) &&
+                    (k.status || k.statusKetersediaan) === 'TERSEDIA'
+                  ).length;
+
+                  return (
+                    <TouchableOpacity
+                      key={bId || index}
+                      onPress={() => handleBranchSelect(branch)}
+                      className={`w-40 bg-surface-container-low rounded-2xl overflow-hidden border ${isSelected ? 'border-primary' : 'border-outline-variant/10'}`}
+                    >
+                      <View className="h-24 bg-surface-container-high relative">
+                        <Image
+                          source={{ uri: branch.foto || MOCK_IMAGES[index % MOCK_IMAGES.length] }}
+                          className="w-full h-full"
+                        />
+                        <View className="absolute inset-0 bg-black/10" />
+                        <View className="absolute top-2 left-2 px-2 py-1 bg-error-container rounded-full flex-row items-center">
+                          <Text className="text-on-error-container text-[10px] font-bold">Sisa {availableCount} Kamar</Text>
+                        </View>
                       </View>
-                    </View>
-                    <View className="p-3">
-                      <Text className="font-bold text-on-surface text-sm" numberOfLines={1}>{branch.namaCabang}</Text>
-                      <View className="flex-row items-center gap-1 mt-1">
-                        <MaterialIcons name="location-on" size={12} color="#777587" />
-                        <Text className="text-[10px] text-outline flex-1" numberOfLines={1}>{branch.alamat}</Text>
+                      <View className="p-3">
+                        <Text className="font-bold text-on-surface text-sm" numberOfLines={1}>{branch.namaCabang}</Text>
+                        <View className="flex-row items-center gap-1 mt-1">
+                          <MaterialIcons name="location-on" size={12} color="#777587" />
+                          <Text className="text-[10px] text-outline flex-1" numberOfLines={1}>{branch.alamat}</Text>
+                        </View>
                       </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
           </View>
 
           {/* Chips */}
@@ -303,7 +305,6 @@ export default function AuthenticatedCatalogScreen() {
           <ActivityIndicator size="large" color="#3525cd" className="mt-10" />
         ) : (
           <>
-            {/* Rekomendasi Untukmu Section */}
             {REKOMENDASI.length > 0 && (
               <View className="mt-8 px-4">
                 <View className="bg-surface-container-low rounded-[24px] p-5 relative overflow-hidden">
@@ -315,7 +316,7 @@ export default function AuthenticatedCatalogScreen() {
                     {REKOMENDASI.map((item) => (
                       <TouchableOpacity
                         key={item.id}
-                        onPress={() => router.push(`/kamar/${item.id}` as any)}
+                        onPress={() => router.push(`/kamar/${item.id}?guest=true` as any)}
                         className={`bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm flex-row h-[160px] ${!item.available ? 'opacity-80' : ''}`}
                       >
                         <View className="w-[140px] h-full relative">
@@ -327,8 +328,6 @@ export default function AuthenticatedCatalogScreen() {
                               </View>
                             </View>
                           )}
-
-                          {/* Badge Rating */}
                           <View className="absolute top-2 left-2 px-2 py-1 bg-white/90 rounded-full flex-row items-center gap-1">
                             <MaterialIcons name="star" size={12} color="#3525cd" />
                             <Text className="text-primary text-[10px] font-bold">{item.rating}</Text>
@@ -342,10 +341,8 @@ export default function AuthenticatedCatalogScreen() {
                                 <Text className="text-[8px] font-bold text-on-surface-variant uppercase">{item.type}</Text>
                               </View>
                             </View>
-                            <Text className="font-bold text-base text-on-surface mb-1" numberOfLines={1}>
-                              {item.name}
-                            </Text>
-                            <Text className="text-xs text-on-surface-variant flex-row items-center mb-2">
+                            <Text className="font-bold text-base text-on-surface mb-1" numberOfLines={1}>{item.name}</Text>
+                            <Text className="text-xs text-on-surface-variant mb-2">
                               <MaterialIcons name="location-on" size={12} /> {item.location}
                             </Text>
                             <View className="flex-row flex-wrap gap-1">
@@ -368,7 +365,6 @@ export default function AuthenticatedCatalogScreen() {
               </View>
             )}
 
-            {/* Jelajahi Lebih Banyak Section */}
             {JELAJAHI.length > 0 && (
               <View className="mt-8 px-4">
                 <Text className="font-bold text-[22px] text-on-surface mb-5">Jelajahi Lebih Banyak</Text>
@@ -376,7 +372,7 @@ export default function AuthenticatedCatalogScreen() {
                   {JELAJAHI.map((item) => (
                     <TouchableOpacity
                       key={item.id}
-                      onPress={() => router.push(`/kamar/${item.id}` as any)}
+                      onPress={() => router.push(`/kamar/${item.id}?guest=true` as any)}
                       className={`w-[48%] bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm mb-4 border border-outline-variant/20 ${!item.available ? 'opacity-80' : ''}`}
                     >
                       <View className="h-32 relative">

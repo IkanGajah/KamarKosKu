@@ -13,16 +13,17 @@ export default function OwnerTabLayout() {
         tabBarInactiveTintColor: '#94a3b8',
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: colorScheme === 'dark' ? 'rgba(2, 6, 23, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+          backgroundColor: '#ffffff',
           position: 'absolute',
-          borderTopWidth: 1,
-          borderTopColor: 'rgba(99, 102, 241, 0.1)',
-          elevation: 0,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 8,
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 75,
+          borderTopWidth: 2,
+          borderTopColor: 'rgba(0,0,0,0.08)',
+          elevation: 25,
+          paddingBottom: 20,
+          paddingTop: 12,
         },
         tabBarLabelStyle: {
           fontFamily: 'Inter',
@@ -58,6 +59,12 @@ export default function OwnerTabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color }) => <MaterialIcons size={24} name="person" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="admins"
+        options={{
+          href: null,
         }}
       />
     </Tabs>
