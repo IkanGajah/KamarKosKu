@@ -1,37 +1,73 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StatusBar, Alert, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StatusBar, Alert, Platform, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
+import { globalState } from '../_globalState';
+import { API_BASE_URL } from '@/constants/config';
 
 export default function CheckoutScreen() {
   const { roomId, roomNumber, price } = useLocalSearchParams();
   const router = useRouter();
   
   const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const paymentMethods = [
     { id: 'cash', name: 'Cash (Bayar di Tempat)', icon: 'payments' as const, color: '#2e7d32' },
     { id: 'transfer', name: 'Transfer Bank', icon: 'account-balance' as const, color: '#0055A5' },
   ];
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!selectedPayment) {
       Alert.alert('Pilih Metode Pembayaran', 'Silakan pilih metode pembayaran terlebih dahulu.');
       return;
     }
     
-    // Here you would normally send the request to backend
-    Alert.alert(
-      'Konfirmasi Berhasil',
-      'Permintaan sewa dan pilihan pembayaran Anda telah dikonfirmasi. Menunggu persetujuan admin.',
-      [
-        {
-          text: 'OK',
-          onPress: () => router.push('/(tabs)' as any),
-        }
-      ]
-    );
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/transaksi/booking`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${globalState.token}`
+        },
+        body: JSON.stringify({
+          kamar: { id: parseInt(roomId as string) },
+          nominal: parseInt(price as string) || 0,
+          metodePembayaran: selectedPayment === 'cash' ? 'TUNAI' : 'ONLINE'
+        })
+      });
+
+      const text = await response.text();
+      let data: any = {};
+      try {
+        if (text) data = JSON.parse(text);
+      } catch (e) {
+        console.error("JSON Parse Error:", e, "Text:", text);
+      }
+
+      if (response.ok) {
+        Alert.alert(
+          'Konfirmasi Berhasil',
+          'Permintaan sewa dan pilihan pembayaran Anda telah dikonfirmasi. Menunggu persetujuan admin.',
+          [
+            {
+              text: 'OK',
+              onPress: () => router.push('/(tabs)' as any),
+            }
+          ]
+        );
+      } else {
+        const errorMsg = data.message || (text.length < 100 ? text : `Server Error (${response.status})`);
+        Alert.alert('Gagal Melakukan Booking', `Pesan dari server: ${errorMsg}`);
+      }
+    } catch (error) {
+      console.error('Booking error:', error);
+      Alert.alert('Error', 'Terjadi kesalahan saat menghubungi server.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const hargaInt = parseInt(price as string) || 0;
