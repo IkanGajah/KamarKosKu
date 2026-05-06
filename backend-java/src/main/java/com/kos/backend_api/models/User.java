@@ -16,16 +16,22 @@ public abstract class User implements UserDetails {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_user")
     protected int idUser;
 
 
     @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
     protected String password;
     
+    @com.fasterxml.jackson.annotation.JsonProperty("nama")
+    @Column(name = "nama")
     protected String nama;
+    
+    @com.fasterxml.jackson.annotation.JsonProperty("noTelepon")
+    @Column(name = "no_telepon")
     protected String noTelepon;
     
-    @Column(unique = true)
+    @Column(name = "email", unique = true)
     protected String email;
 
     public User() {}

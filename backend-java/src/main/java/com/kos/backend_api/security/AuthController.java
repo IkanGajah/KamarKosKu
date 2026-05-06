@@ -39,14 +39,24 @@ public class AuthController {
                 new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword()));
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        User userDetails = (User) authentication.getPrincipal();
+        User userPrincipal = (User) authentication.getPrincipal();
+        
+        // AMBIL ULANG DARI DB UNTUK MEMASTIKAN DATA TERISI (Sapu Bersih)
+        User userDetails = userRepository.findByEmail(userPrincipal.getUsername())
+                .orElse(userPrincipal);
         
         String jwt = jwtUtils.generateToken(userDetails);
         
         // Ambil role dari authorities (kita kembalikan 1 role dari List)
         String role = userDetails.getAuthorities().iterator().next().getAuthority();
 
-        AuthResponse authResponse = new AuthResponse(jwt, userDetails.getUsername(), role);
+        AuthResponse authResponse = new AuthResponse(
+                jwt, 
+                userDetails.getUsername(), 
+                role, 
+                userDetails.getNama(), 
+                userDetails.getNoTelepon()
+        );
         return new WebResponse<>(200, "Login Berhasil", authResponse);
     }
 

@@ -55,9 +55,9 @@ public class PenyewaController {
     @PreAuthorize("hasRole('PENYEWA')")
     public WebResponse<Penyewa> getProfil() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        User user = (User) auth.getPrincipal();
+        String email = auth.getName();
 
-        Penyewa penyewa = penyewaRepository.findById(user.getIdUser())
+        Penyewa penyewa = penyewaRepository.findByEmail(email)
             .orElseThrow(() -> new RuntimeException("Data penyewa tidak ditemukan"));
         
         return new WebResponse<>(200, "Profil berhasil diambil", penyewa);
@@ -67,9 +67,9 @@ public class PenyewaController {
     @PreAuthorize("hasRole('PENYEWA')")
     public WebResponse<Penyewa> updateProfil(@RequestBody Penyewa request) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        User user = (User) auth.getPrincipal();
+        String email = auth.getName();
 
-        return penyewaRepository.findById(user.getIdUser()).map(penyewa -> {
+        return penyewaRepository.findByEmail(email).map(penyewa -> {
             if (request.getNama() != null) penyewa.setNama(request.getNama());
             if (request.getNoTelepon() != null) penyewa.setNoTelepon(request.getNoTelepon());
             if (request.getNoKtp() != null) penyewa.setNoKtp(request.getNoKtp());
