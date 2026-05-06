@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  ScrollView, 
-  TouchableOpacity, 
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
   Image,
   Alert,
   Modal,
@@ -43,6 +43,7 @@ interface Kamar {
   statusKetersediaan: string;
   status?: string;
   cabang: CabangKos;
+  namaPenyewa?: string;
 }
 
 export default function OwnerBranchesScreen() {
@@ -52,7 +53,7 @@ export default function OwnerBranchesScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingBranch, setEditingBranch] = useState<CabangKos | null>(null);
-  
+
   // Form State
   const [namaCabang, setNamaCabang] = useState('');
   const [alamat, setAlamat] = useState('');
@@ -69,43 +70,61 @@ export default function OwnerBranchesScreen() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // Fetch Cabang
-      try {
-        const branchRes = await fetch(`${API_BASE_URL}/cabang?t=${Date.now()}`, {
-          headers: { 'Authorization': `Bearer ${globalState.token}` }
-        });
-        if (branchRes.ok) {
-          const branchData = await branchRes.json();
-          if (branchData.data) setBranches(branchData.data);
-        }
-      } catch (err) {
-        console.error("Gagal memuat cabang", err);
+      // 1. Fetch Cabang
+      const branchRes = await fetch(`${API_BASE_URL}/cabang?t=${Date.now()}`, {
+        headers: { 'Authorization': `Bearer ${globalState.token}` }
+      });
+      if (branchRes.ok) {
+        const branchData = await branchRes.json();
+        if (branchData.data) setBranches(branchData.data);
       }
 
-      // Fetch Kamar
-      try {
-        const kamarRes = await fetch(`${API_BASE_URL}/kamar?t=${Date.now()}`, {
-          headers: { 'Authorization': `Bearer ${globalState.token}` }
-        });
-        if (kamarRes.ok) {
-          const kamarData = await kamarRes.json();
-          if (kamarData.data) setKamars(kamarData.data);
-        }
-      } catch (err) {
-        console.error("Gagal memuat data kamar", err);
+      // 2. Fetch Kamar
+      let fetchedKamars: Kamar[] = [];
+      const kamarRes = await fetch(`${API_BASE_URL}/kamar?t=${Date.now()}`, {
+        headers: { 'Authorization': `Bearer ${globalState.token}` }
+      });
+      if (kamarRes.ok) {
+        const kamarData = await kamarRes.json();
+        if (kamarData.data) fetchedKamars = kamarData.data;
       }
 
-      // Fetch Admins
+      // 3. Fetch Transaksi (untuk memetakan nama penyewa)
+      let tenantMap: Record<number, string> = {};
       try {
-        const adminRes = await fetch(`${API_BASE_URL}/users/admin`, {
+        const transRes = await fetch(`${API_BASE_URL}/transaksi?t=${Date.now()}`, {
           headers: { 'Authorization': `Bearer ${globalState.token}` }
         });
-        if (adminRes.ok) {
-          const adminData = await adminRes.json();
-          if (adminData.data) setAdmins(adminData.data);
+        if (transRes.ok) {
+          const transData = await transRes.json();
+          if (transData.data) {
+            // Kita ambil transaksi terbaru untuk setiap kamar
+            transData.data.forEach((t: any) => {
+              if (t.kamar && t.penyewa) {
+                const kId = t.kamar.id || t.kamar.idKamar;
+                tenantMap[kId] = t.penyewa.nama;
+              }
+            });
+          }
         }
       } catch (err) {
-        console.error("Gagal memuat admin", err);
+        console.error("Gagal memuat transaksi", err);
+      }
+
+      // 4. Gabungkan data kamar dengan nama penyewa
+      const enrichedKamars = fetchedKamars.map(k => ({
+        ...k,
+        namaPenyewa: k.namaPenyewa || tenantMap[k.idKamar || (k as any).id] || undefined
+      }));
+      setKamars(enrichedKamars);
+
+      // 5. Fetch Admins
+      const adminRes = await fetch(`${API_BASE_URL}/users/admin`, {
+        headers: { 'Authorization': `Bearer ${globalState.token}` }
+      });
+      if (adminRes.ok) {
+        const adminData = await adminRes.json();
+        if (adminData.data) setAdmins(adminData.data);
       }
     } catch (error) {
       console.error("General fetch error:", error);
@@ -125,14 +144,14 @@ export default function OwnerBranchesScreen() {
     }
 
     try {
-      const url = editingBranch 
+      const url = editingBranch
         ? `${API_BASE_URL}/cabang/${editingBranch.idCabang}`
         : `${API_BASE_URL}/cabang`;
       const method = editingBranch ? 'PUT' : 'POST';
-      
+
       const response = await fetch(url, {
         method,
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${globalState.token}`
         },
@@ -154,7 +173,7 @@ export default function OwnerBranchesScreen() {
         if (selectedAdminId && branchId) {
           await fetch(`${API_BASE_URL}/users/admin/${selectedAdminId}/cabang`, {
             method: 'PUT',
-            headers: { 
+            headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${globalState.token}`
             },
@@ -176,28 +195,36 @@ export default function OwnerBranchesScreen() {
 
   const handleAddKamar = async () => {
     if (!editingBranch) return;
+    const branchKamars = kamars.filter(k => k.cabang && (k.cabang.idCabang === editingBranch.idCabang || k.cabang.id === editingBranch.idCabang));
+    const limit = parseInt(jumlahKamar, 10) || 0;
+
+    if (!editingRoom && branchKamars.length >= limit) {
+      Alert.alert("Limit Tercapai", `Jumlah kamar sudah mencapai total kapasitas (${limit}). Harap tingkatkan total kamar cabang terlebih dahulu.`);
+      return;
+    }
+
     if (!nomorKamar || !hargaKamar) {
       Alert.alert("Error", "Nomor kamar dan harga harus diisi");
       return;
     }
 
     try {
-      const url = editingRoom 
+      const url = editingRoom
         ? `${API_BASE_URL}/kamar/${editingRoom.idKamar || editingRoom.id}`
         : `${API_BASE_URL}/kamar`;
       const method = editingRoom ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
         method,
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${globalState.token}`
         },
         body: JSON.stringify({
           nomorKamar,
-          hargaSewa: parseInt(hargaKamar, 10),
+          harga: parseInt(hargaKamar, 10),
           fasilitas: fasilitasKamar,
-          statusKetersediaan: editingRoom ? (editingRoom.statusKetersediaan || editingRoom.status) : 'TERSEDIA',
+          status: editingRoom ? (editingRoom.statusKetersediaan || editingRoom.status) : 'TERSEDIA',
           cabang: { idCabang: editingBranch.idCabang }
         })
       });
@@ -221,8 +248,8 @@ export default function OwnerBranchesScreen() {
   const handleDeleteKamar = (id: number) => {
     Alert.alert("Konfirmasi", "Hapus kamar ini?", [
       { text: "Batal", style: "cancel" },
-      { 
-        text: "Hapus", 
+      {
+        text: "Hapus",
         style: "destructive",
         onPress: async () => {
           try {
@@ -234,7 +261,7 @@ export default function OwnerBranchesScreen() {
               Alert.alert("Sukses", "Kamar dihapus");
               fetchData();
             }
-          } catch (error) {}
+          } catch (error) { }
         }
       }
     ]);
@@ -243,8 +270,8 @@ export default function OwnerBranchesScreen() {
   const handleDelete = (id: number) => {
     Alert.alert("Konfirmasi", "Apakah Anda yakin ingin menonaktifkan cabang ini?", [
       { text: "Batal", style: "cancel" },
-      { 
-        text: "Hapus", 
+      {
+        text: "Hapus",
         style: "destructive",
         onPress: async () => {
           try {
@@ -293,7 +320,7 @@ export default function OwnerBranchesScreen() {
     const branchKamars = kamars.filter(k => k.cabang && (k.cabang.idCabang === branchId || k.cabang.id === branchId));
     const occupiedKamars = branchKamars.filter(k => (k.statusKetersediaan || k.status || '').toUpperCase() === 'PENUH').length;
     const occupancyRate = totalRooms > 0 ? Math.round((occupiedKamars / totalRooms) * 100) : 0;
-    
+
     let statusText = "Stabil";
     if (occupancyRate >= 90) statusText = "Penuh";
     else if (occupancyRate < 50) statusText = "Banyak Kosong";
@@ -303,11 +330,11 @@ export default function OwnerBranchesScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-surface pt-4" edges={['top', 'left', 'right']}>
-      
+
       {/* Top App Bar */}
       <View className="px-6 pb-4 flex-row justify-between items-center z-50">
         <Text className="font-black text-xl text-black tracking-tight">KosKu Owner</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => router.push('/notifications' as any)}
           className="hover:opacity-80 active:scale-95"
         >
@@ -317,19 +344,19 @@ export default function OwnerBranchesScreen() {
       </View>
       <View className="bg-surface-container-high/50 h-[1px] w-full" />
 
-      <ScrollView 
+      <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }}
         className="px-6 flex-1 mt-4"
       >
-        
+
         {/* Page Header */}
         <View className="mb-6 flex-col gap-4">
           <View>
             <Text className="font-black text-[28px] text-on-surface leading-tight tracking-tight">Daftar Cabang</Text>
             <Text className="text-[15px] text-on-surface-variant mt-2">Kelola portofolio properti Anda dan pantau ketersediaan kamar di seluruh lokasi.</Text>
           </View>
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => openModal()}
             className="rounded-xl overflow-hidden shadow-sm active:scale-95"
           >
@@ -351,17 +378,17 @@ export default function OwnerBranchesScreen() {
           <View className="flex-col gap-6">
             {branches.map((branch, index) => {
               const stats = getBranchStats(branch.idCabang, branch.jumlahKamar);
-              
+
               return (
                 <View key={branch.idCabang} className="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm border border-outline-variant/20 flex-col">
-                  
+
                   {/* Image Section */}
                   <View className="h-48 relative overflow-hidden bg-surface-container-highest">
-                    <Image 
-                      source={{ uri: branch.foto || MOCK_IMAGES[index % MOCK_IMAGES.length] }} 
+                    <Image
+                      source={{ uri: branch.foto || MOCK_IMAGES[index % MOCK_IMAGES.length] }}
                       className="w-full h-full object-cover"
                     />
-                    
+
                     <LinearGradient
                       colors={['transparent', 'rgba(0,0,0,0.5)']}
                       className="absolute bottom-0 left-0 w-full h-1/2"
@@ -389,7 +416,7 @@ export default function OwnerBranchesScreen() {
                       </View>
                     </View>
 
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       onPress={() => openModal(branch)}
                       className="w-full h-[52px] rounded-xl bg-[#e0e3ff] active:bg-[#c6cbff] flex-row items-center justify-center gap-2"
                     >
@@ -445,7 +472,7 @@ export default function OwnerBranchesScreen() {
               </View>
 
               <View className="mb-6">
-                <Text className="text-sm font-medium text-on-surface-variant mb-2">Total Kamar</Text>
+                <Text className="text-sm font-medium text-on-surface-variant mb-2">Maksimal Kamar</Text>
                 <TextInput
                   className="w-full px-4 py-3 bg-surface-container-highest rounded-xl text-on-surface h-[50px]"
                   placeholder="Misal: 50"
@@ -478,39 +505,59 @@ export default function OwnerBranchesScreen() {
               {editingBranch && (
                 <View className="mb-8 p-4 bg-surface-container-low rounded-2xl border border-outline-variant/20">
                   <Text className="font-bold text-lg text-on-surface mb-4">Kelola Kamar</Text>
-                  
+
                   {/* Current Rooms List */}
                   <View className="mb-4 gap-2">
-                    {kamars.filter(k => k.cabang && (k.cabang.idCabang === editingBranch.idCabang || (k.cabang as any).id === editingBranch.idCabang)).map(k => (
-                      <View key={k.idKamar || k.id} className="bg-surface-container-lowest p-3 rounded-lg border border-outline-variant/10">
-                        <View className="flex-row justify-between items-center mb-2">
-                          <Text className="font-bold text-on-surface">Kamar {k.nomorKamar}</Text>
-                          <View className="flex-row gap-2">
-                            <TouchableOpacity 
-                              onPress={() => {
-                                setEditingRoom(k);
-                                setNomorKamar(k.nomorKamar || '');
-                                setHargaKamar((k.hargaSewa || k.harga || 0).toString());
-                                setFasilitasKamar(k.fasilitas || 'AC');
-                              }}
-                              className="p-1.5 bg-primary-container rounded-md"
-                            >
-                              <MaterialIcons name="edit" size={14} color="#000" />
-                            </TouchableOpacity>
-                            <TouchableOpacity 
-                              onPress={() => handleDeleteKamar(k.idKamar || (k as any).id)}
-                              className="p-1.5 bg-error-container rounded-md"
-                            >
-                              <MaterialIcons name="delete" size={14} color="#ba1a1a" />
-                            </TouchableOpacity>
+                    {kamars.filter(k => k.cabang && (k.cabang.idCabang === editingBranch.idCabang || (k.cabang as any).id === editingBranch.idCabang)).map(k => {
+                      const isOccupied = (k.statusKetersediaan || k.status || '').toUpperCase() === 'PENUH';
+                      return (
+                        <View key={k.idKamar || k.id} className="bg-surface-container-lowest p-3 rounded-xl border border-outline-variant/10 mb-2">
+                          <View className="flex-row justify-between items-center mb-2">
+                            <View className="flex-row items-center gap-2">
+                              <Text className="font-bold text-on-surface">Kamar {k.nomorKamar}</Text>
+                              <View className={`px-2 py-0.5 rounded-full`} style={{ backgroundColor: isOccupied ? '#ffdad6' : '#dbf4e9' }}>
+                                <Text className={`text-[10px] font-black uppercase tracking-wider`} style={{ color: isOccupied ? '#ba1a1a' : '#006b5f' }}>
+                                  {isOccupied ? 'Terisi' : 'Kosong'}
+                                </Text>
+                              </View>
+                            </View>
+                            <View className="flex-row gap-2">
+                              <TouchableOpacity 
+                                onPress={() => {
+                                  setEditingRoom(k);
+                                  setNomorKamar(k.nomorKamar || '');
+                                  setHargaKamar((k.hargaSewa || k.harga || 0).toString());
+                                  setFasilitasKamar(k.fasilitas || 'AC');
+                                }}
+                                className="p-1.5 bg-primary-container rounded-md"
+                              >
+                                <MaterialIcons name="edit" size={14} color="#000" />
+                              </TouchableOpacity>
+                              <TouchableOpacity 
+                                onPress={() => handleDeleteKamar(k.idKamar || (k as any).id)}
+                                className="p-1.5 bg-error-container rounded-md"
+                              >
+                                <MaterialIcons name="delete" size={14} color="#ba1a1a" />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                          
+                          {isOccupied && (
+                            <View className="flex-row items-center gap-1.5 mb-2 bg-surface-container-low p-2 rounded-lg">
+                              <MaterialIcons name="person" size={14} color="#464555" />
+                              <Text className="text-xs font-bold text-on-surface">
+                                Penyewa: {k.namaPenyewa || '(Data tidak ditemukan)'}
+                              </Text>
+                            </View>
+                          )}
+
+                          <View className="flex-row justify-between items-center">
+                            <Text className="text-xs text-on-surface-variant">{k.fasilitas || 'AC'}</Text>
+                            <Text className="text-xs font-bold text-primary">Rp {(k.hargaSewa || k.harga || 0).toLocaleString()}</Text>
                           </View>
                         </View>
-                        <View className="flex-row justify-between items-center">
-                          <Text className="text-xs text-on-surface-variant">{k.fasilitas || 'AC'}</Text>
-                          <Text className="text-xs font-bold text-primary">Rp {(k.hargaSewa || k.harga || 0).toLocaleString()}</Text>
-                        </View>
-                      </View>
-                    ))}
+                      );
+                    })}
                     {kamars.filter(k => k.cabang && (k.cabang.idCabang === editingBranch.idCabang || (k.cabang as any).id === editingBranch.idCabang)).length === 0 && (
                       <Text className="text-xs text-on-surface-variant italic text-center py-2">Belum ada kamar.</Text>
                     )}
@@ -544,12 +591,12 @@ export default function OwnerBranchesScreen() {
                       value={hargaKamar}
                       onChangeText={setHargaKamar}
                     />
-                    
+
                     <View>
                       <Text className="text-xs text-on-surface-variant mb-2">Fasilitas</Text>
                       <View className="flex-row gap-2">
                         {['AC', 'NON_AC'].map(opt => (
-                          <TouchableOpacity 
+                          <TouchableOpacity
                             key={opt}
                             onPress={() => setFasilitasKamar(opt)}
                             className={`flex-1 h-[40px] rounded-lg items-center justify-center border ${fasilitasKamar === opt ? 'bg-primary border-primary' : 'border-outline-variant/30'}`}
@@ -560,7 +607,7 @@ export default function OwnerBranchesScreen() {
                       </View>
                     </View>
 
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       onPress={handleAddKamar}
                       className="bg-primary h-[45px] rounded-lg items-center justify-center shadow-sm"
                     >
@@ -571,7 +618,7 @@ export default function OwnerBranchesScreen() {
               )}
 
               {editingBranch && (
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={() => {
                     setIsModalVisible(false);
                     handleDelete(editingBranch.idCabang);
@@ -583,7 +630,7 @@ export default function OwnerBranchesScreen() {
                 </TouchableOpacity>
               )}
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={handleSave}
                 className="w-full h-[52px] rounded-xl overflow-hidden shadow-sm active:scale-95 mb-10"
               >

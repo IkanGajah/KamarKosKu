@@ -36,28 +36,28 @@ export default function OwnerTabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Overview',
+          title: 'Ringkasan',
           tabBarIcon: ({ color }) => <MaterialIcons size={24} name="dashboard" color={color} />,
         }}
       />
       <Tabs.Screen
         name="branches"
         options={{
-          title: 'Branches',
+          title: 'Cabang Kos',
           tabBarIcon: ({ color }) => <MaterialIcons size={24} name="location-city" color={color} />,
         }}
       />
       <Tabs.Screen
         name="reports"
         options={{
-          title: 'Reports',
+          title: 'Laporan',
           tabBarIcon: ({ color }) => <MaterialIcons size={24} name="assessment" color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: 'Profil',
           tabBarIcon: ({ color }) => <MaterialIcons size={24} name="person" color={color} />,
         }}
       />
