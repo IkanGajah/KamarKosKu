@@ -67,7 +67,7 @@ export default function OwnerReportsScreen() {
       
       {/* Top App Bar */}
       <View className="px-6 pb-4 flex-row justify-between items-center z-50">
-        <Text className="font-black text-xl text-black tracking-tight">KKK Owner</Text>
+        <Text className="font-black text-xl text-black tracking-tight">Owner</Text>
         <TouchableOpacity 
           onPress={() => router.push('/notifications' as any)}
           className="hover:opacity-80 active:scale-95"

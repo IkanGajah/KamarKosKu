@@ -114,7 +114,7 @@ export default function RegisterScreen() {
               <View className="items-center mb-8">
                 <View className="flex-row items-center justify-center gap-2 mb-2">
                   <MaterialIcons name="domain" size={32} color="#3525cd" />
-                  <Text className="font-black text-2xl text-primary tracking-tighter">KKK</Text>
+                  <Text className="font-black text-2xl text-primary tracking-tighter">Kamar Kos Ku</Text>
                 </View>
                 <Text className="font-extrabold text-[28px] text-on-surface mb-1">Buat Akun</Text>
                 <Text className="text-[15px] text-on-surface-variant text-center">Mulai kelola atau cari properti impianmu.</Text>
