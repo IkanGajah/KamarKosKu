@@ -12,15 +12,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { API_BASE_URL } from '@/constants/config';
 import { globalState } from '../_globalState';
+import { useRouter } from 'expo-router';
 
-export default function AdminTenantsScreen() {
+export default function OwnerTenantsScreen() {
+  const router = useRouter();
   const [tenants, setTenants] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [searchQuery, setSearchQuery] = React.useState('');
-  const [adminProfile, setAdminProfile] = React.useState<any>(null);
 
   const [selectedTenant, setSelectedTenant] = React.useState<any>(null);
   const [isDetailVisible, setIsDetailVisible] = React.useState(false);
@@ -30,14 +30,8 @@ export default function AdminTenantsScreen() {
   }, []);
 
   const fetchData = async () => {
+    setLoading(true);
     try {
-      const profileRes = await fetch(`${API_BASE_URL}/users/profile`, {
-        headers: { 'Authorization': `Bearer ${globalState.token}` }
-      });
-      const profileJson = await profileRes.json();
-      setAdminProfile(profileJson.data || {});
-
-      // Fetch transactions
       const response = await fetch(`${API_BASE_URL}/transaksi`, {
         headers: { 'Authorization': `Bearer ${globalState.token}` }
       });
@@ -49,6 +43,7 @@ export default function AdminTenantsScreen() {
           email: t.penyewa?.email || '-',
           phone: t.penyewa?.noTelepon || '-',
           room: `Kamar ${t.kamar?.nomorKamar || '?'}`,
+          cabang: t.kamar?.cabang?.namaCabang || 'Cabang Tidak Diketahui',
           nominal: t.nominal || 0,
           rentAmount: `Rp ${(t.nominal || 0).toLocaleString('id-ID')}`,
           date: t.tanggalTransaksi || '-',
@@ -119,10 +114,11 @@ export default function AdminTenantsScreen() {
 
   const filteredTenants = tenants.filter(t =>
     t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.room.toLowerCase().includes(searchQuery.toLowerCase())
+    t.room.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.cabang.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const userInitials = (globalState.namaLengkap || globalState.email || 'A')
+  const userInitials = (globalState.namaLengkap || globalState.email || 'O')
     .split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
   return (
@@ -141,11 +137,14 @@ export default function AdminTenantsScreen() {
               <Text className="text-on-primary-container font-bold text-xs">{userInitials}</Text>
             </View>
           )}
-          <Text className="font-black text-2xl text-black tracking-tighter">Admin Cabang</Text>
+          <Text className="font-black text-2xl text-black tracking-tighter">Owner</Text>
         </View>
 
-        <TouchableOpacity className="p-2 rounded-xl text-indigo-600 active:scale-95">
-          <MaterialIcons name="notifications" size={24} color="#4f46e5" />
+        <TouchableOpacity 
+          onPress={() => router.push('/notifications' as any)}
+          className="p-2 rounded-xl text-indigo-600 active:scale-95"
+        >
+          <MaterialIcons name="notifications" size={28} color="#464555" />
         </TouchableOpacity>
       </View>
       <View className="bg-surface-container-high/50 h-[1px] w-full" />
@@ -157,7 +156,7 @@ export default function AdminTenantsScreen() {
       >
         <View className="mb-8">
           <Text className="font-black text-[28px] text-on-surface leading-tight tracking-tight mb-2">Transaksi & Penyewa</Text>
-          <Text className="text-[15px] text-on-surface-variant">Kelola penyewa aktif, pantau tagihan, dan validasi pembayaran masuk.</Text>
+          <Text className="text-[15px] text-on-surface-variant">Pantau seluruh transaksi dan penyewa dari semua cabang kos Anda.</Text>
         </View>
 
         {/* Search */}
@@ -167,8 +166,8 @@ export default function AdminTenantsScreen() {
               <MaterialIcons name="search" size={20} color="#777587" />
             </View>
             <TextInput
-              className="w-full pl-12 pr-4 h-[52px] bg-surface-container-highest rounded-xl text-on-surface"
-              placeholder="Cari nama atau nomor kamar..."
+              className="w-full pl-12 pr-4 h-[52px] bg-surface-container-highest rounded-xl text-on-surface font-semibold"
+              placeholder="Cari penyewa, kamar, atau cabang..."
               placeholderTextColor="#777587"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -177,78 +176,80 @@ export default function AdminTenantsScreen() {
         </View>
 
         {/* Tenant Cards */}
-        <View className="flex-col gap-6">
+        <View className="flex-col mb-4">
           {loading ? (
             <View className="py-20 items-center">
               <ActivityIndicator size="large" color="#4f46e5" />
-              <Text className="mt-4 text-on-surface-variant font-medium">Memuat data penyewa...</Text>
+              <Text className="mt-4 text-on-surface-variant font-medium">Memuat data transaksi...</Text>
             </View>
           ) : filteredTenants.length > 0 ? (
             filteredTenants.map((tenant, index) => (
-              <View key={tenant.id || index} className="bg-surface-container-lowest rounded-2xl p-6 shadow-sm border border-outline-variant/10 overflow-hidden relative">
+              <View key={tenant.id || index} className="bg-surface-container-lowest rounded-2xl p-5 shadow-sm border border-outline-variant/10 overflow-hidden relative mb-5">
 
                 {/* Header: User Info & Status */}
-                <View className="flex-row items-start justify-between mb-6 z-10 relative">
-                  <View className="flex-row items-center">
+                <View className="flex-row items-start justify-between mb-4 z-10 relative">
+                  <View className="flex-row items-center flex-1 pr-2">
                     {tenant.image ? (
                       <Image
                         source={{ uri: tenant.image }}
-                        className="w-14 h-14 rounded-full border-2 border-surface mr-3"
+                        className="w-12 h-12 rounded-full border border-surface mr-3"
                       />
                     ) : (
-                      <View className="w-14 h-14 rounded-full bg-primary-container items-center justify-center border-2 border-surface mr-3">
-                        <Text className="font-bold text-xl text-on-primary-container">{tenant.initials}</Text>
+                      <View className="w-12 h-12 rounded-full bg-primary-container items-center justify-center border border-surface mr-3">
+                        <Text className="font-bold text-lg text-on-primary-container">{tenant.initials}</Text>
                       </View>
                     )}
-                    <View>
-                      <Text className="font-bold text-[18px] text-on-surface">{tenant.name}</Text>
+                    <View className="flex-1">
+                      <Text className="font-bold text-[18px] text-on-surface" numberOfLines={1}>{tenant.name}</Text>
+                      <View className="flex-row items-center mt-1">
+                        <MaterialIcons name="location-city" size={14} color="#464555" style={{ marginRight: 4 }} />
+                        <Text className="text-[12px] text-on-surface-variant font-medium" numberOfLines={1}>{tenant.cabang}</Text>
+                      </View>
                       <View className="flex-row items-center mt-0.5">
-                        <MaterialIcons name="bed" size={16} color="#464555" style={{ marginRight: 4 }} />
-                        <Text className="text-[13px] text-on-surface-variant">{tenant.room}</Text>
+                        <MaterialIcons name="meeting-room" size={14} color="#464555" style={{ marginRight: 4 }} />
+                        <Text className="text-[12px] text-on-surface-variant">{tenant.room}</Text>
                       </View>
                     </View>
                   </View>
 
                   {/* Status Badge */}
-                  <View className={`px-3 py-1 rounded-full flex-row items-center ${tenant.status === 'Menunggu' ? 'bg-[#ffdad6]' : 'bg-[#e7f3ef]'
-                    }`}>
-                    {tenant.status === 'Lunas' && <MaterialIcons name="check-circle" size={14} color="#006b5f" style={{ marginRight: 4 }} />}
-                    <Text className={`text-[12px] font-bold tracking-wide ${tenant.status === 'Menunggu' ? 'text-[#93000a]' : 'text-[#006b5f]'
-                      }`}>
+                  <View className={`px-3 py-1.5 rounded-full flex-row items-center ${tenant.status === 'Menunggu' ? 'bg-[#ffdad6]' : 'bg-[#e7f3ef]'}`}>
+                    {tenant.status === 'Lunas' && <MaterialIcons name="check-circle" size={12} color="#006b5f" style={{ marginRight: 4 }} />}
+                    <Text className={`text-[11px] font-extrabold tracking-wide uppercase ${tenant.status === 'Menunggu' ? 'text-[#93000a]' : 'text-[#006b5f]'}`}>
                       {tenant.status}
                     </Text>
                   </View>
                 </View>
 
                 {/* Rent Info Block */}
-                <View className="bg-surface-container-low rounded-xl p-4 mb-6 flex-row justify-between items-end">
+                <View className="bg-surface-container-low rounded-xl p-3.5 mb-4 flex-row justify-between items-center border border-outline-variant/10">
                   <View>
-                    <Text className="text-[11px] text-on-surface-variant font-bold uppercase tracking-wider mb-1">Total Biaya</Text>
-                    <Text className="font-extrabold text-[20px] text-on-surface">{tenant.rentAmount}</Text>
+                    <Text className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest mb-1">Total Biaya</Text>
+                    <Text className="font-extrabold text-[18px] text-primary">{tenant.rentAmount}</Text>
                   </View>
                   <View className="items-end">
-                    <Text className="text-[11px] text-on-surface-variant font-bold uppercase tracking-wider mb-1">Tanggal Transaksi</Text>
-                    <Text className="font-semibold text-[15px] text-on-surface">{tenant.date}</Text>
+                    <Text className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest mb-1">Tanggal</Text>
+                    <Text className="font-semibold text-[14px] text-on-surface">{tenant.date}</Text>
                   </View>
                 </View>
 
                 {/* Action Buttons */}
-                <View className="flex-row">
+                <View className="flex-row mt-1">
                   {tenant.status === 'Menunggu' ? (
                     <TouchableOpacity
                       onPress={() => handleKonfirmasiPembayaran(tenant.id)}
-                      className="flex-1 h-[44px] rounded-xl flex-row items-center justify-center bg-primary mr-3"
+                      className="flex-1 h-[44px] rounded-xl flex-row items-center justify-center bg-primary"
                     >
-                      <MaterialIcons name="verified" size={20} color="#ffffff" style={{ marginRight: 8 }} />
-                      <Text className="font-bold text-white">Konfirmasi Lunas</Text>
+                      <MaterialIcons name="verified" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+                      <Text className="font-bold text-white text-[14px]">Konfirmasi Lunas</Text>
                     </TouchableOpacity>
                   ) : (
                     <TouchableOpacity
                       onPress={() => handleShowDetail(tenant)}
-                      className="flex-1 h-[44px] rounded-xl flex-row items-center justify-center bg-surface-container-highest mr-3"
+                      className="flex-1 h-[44px] rounded-xl flex-row items-center justify-center bg-surface-container-highest"
                     >
-                      <MaterialIcons name="receipt-long" size={20} color="#191c1e" style={{ marginRight: 8 }} />
-                      <Text className="font-semibold text-on-surface">Lihat Detail</Text>
+                      <MaterialIcons name="receipt-long" size={18} color="#191c1e" style={{ marginRight: 6 }} />
+                      <Text className="font-bold text-on-surface text-[14px]">Lihat Detail</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -257,8 +258,8 @@ export default function AdminTenantsScreen() {
             ))
           ) : (
             <View className="py-20 items-center">
-              <MaterialIcons name="person-off" size={48} color="#777587" />
-              <Text className="mt-4 text-on-surface-variant font-medium">Tidak ada penyewa / transaksi ditemukan</Text>
+              <MaterialIcons name="receipt-long" size={48} color="#cbd5e1" />
+              <Text className="mt-4 text-on-surface-variant font-medium">Tidak ada transaksi ditemukan</Text>
             </View>
           )}
         </View>
@@ -266,46 +267,51 @@ export default function AdminTenantsScreen() {
       </ScrollView>
 
       {/* Tenant Detail Modal */}
-      <Modal visible={isDetailVisible} animationType="slide" transparent>
-        <View className="flex-1 justify-end bg-black/50">
-          <View className="bg-surface rounded-t-3xl p-6 shadow-xl">
+      <Modal visible={isDetailVisible} animationType="fade" transparent>
+        <View className="flex-1 justify-end bg-black/60">
+          <View className="bg-surface rounded-t-3xl p-6 shadow-2xl">
             <View className="flex-row justify-between items-center mb-6">
               <Text className="text-xl font-black text-on-surface">Detail Transaksi</Text>
-              <TouchableOpacity onPress={() => setIsDetailVisible(false)}>
+              <TouchableOpacity onPress={() => setIsDetailVisible(false)} className="p-2 -mr-2">
                 <MaterialIcons name="close" size={24} color="#777587" />
               </TouchableOpacity>
             </View>
 
             {selectedTenant && (
               <View className="space-y-4">
-                <View className="flex-row items-center bg-surface-container-low p-4 rounded-2xl mb-4">
+                <View className="flex-row items-center bg-surface-container-low p-4 rounded-2xl mb-4 border border-outline-variant/10">
                   <View className="w-12 h-12 rounded-full bg-primary-container items-center justify-center mr-4">
                     <Text className="font-bold text-lg text-on-primary-container">{selectedTenant.initials}</Text>
                   </View>
-                  <View>
+                  <View className="flex-1">
                     <Text className="font-bold text-lg text-on-surface">{selectedTenant.name}</Text>
-                    <Text className="text-on-surface-variant">{selectedTenant.email}</Text>
+                    <Text className="text-sm text-on-surface-variant">{selectedTenant.email}</Text>
+                    <Text className="text-sm text-on-surface-variant">{selectedTenant.phone}</Text>
                   </View>
                 </View>
 
-                <View className="bg-surface-container-highest p-4 rounded-2xl space-y-3 mb-6">
-                  <View className="flex-row justify-between border-b border-outline-variant/20 pb-2">
+                <View className="bg-surface-container-highest p-5 rounded-2xl space-y-4 mb-6">
+                  <View className="flex-row justify-between items-center border-b border-outline-variant/10 pb-3">
+                    <Text className="text-on-surface-variant font-medium">Cabang</Text>
+                    <Text className="font-bold text-on-surface">{selectedTenant.cabang}</Text>
+                  </View>
+                  <View className="flex-row justify-between items-center border-b border-outline-variant/10 pb-3">
                     <Text className="text-on-surface-variant font-medium">Kamar</Text>
                     <Text className="font-bold text-on-surface">{selectedTenant.room}</Text>
                   </View>
-                  <View className="flex-row justify-between border-b border-outline-variant/20 pb-2">
+                  <View className="flex-row justify-between items-center border-b border-outline-variant/10 pb-3">
                     <Text className="text-on-surface-variant font-medium">Nominal</Text>
-                    <Text className="font-bold text-on-surface">{selectedTenant.rentAmount}</Text>
+                    <Text className="font-bold text-primary text-[16px]">{selectedTenant.rentAmount}</Text>
                   </View>
-                  <View className="flex-row justify-between border-b border-outline-variant/20 pb-2">
+                  <View className="flex-row justify-between items-center border-b border-outline-variant/10 pb-3">
                     <Text className="text-on-surface-variant font-medium">Metode</Text>
                     <Text className="font-bold text-on-surface">{selectedTenant.metode}</Text>
                   </View>
-                  <View className="flex-row justify-between border-b border-outline-variant/20 pb-2">
+                  <View className="flex-row justify-between items-center border-b border-outline-variant/10 pb-3">
                     <Text className="text-on-surface-variant font-medium">Tgl Transaksi</Text>
                     <Text className="font-bold text-on-surface">{selectedTenant.date}</Text>
                   </View>
-                  <View className="flex-row justify-between">
+                  <View className="flex-row justify-between items-center">
                     <Text className="text-on-surface-variant font-medium">Jatuh Tempo</Text>
                     <Text className="font-bold text-error">{selectedTenant.jatuhTempo}</Text>
                   </View>
@@ -314,7 +320,7 @@ export default function AdminTenantsScreen() {
                 {selectedTenant.rawStatus === 'PENDING' && (
                   <TouchableOpacity
                     onPress={() => handleKonfirmasiPembayaran(selectedTenant.id)}
-                    className="bg-primary h-14 rounded-xl items-center justify-center flex-row mb-2"
+                    className="bg-primary h-14 rounded-2xl items-center justify-center flex-row mb-3 shadow-md"
                   >
                     <MaterialIcons name="verified" size={20} color="#fff" style={{ marginRight: 8 }} />
                     <Text className="text-white font-bold text-lg">Konfirmasi Sekarang</Text>
@@ -323,13 +329,13 @@ export default function AdminTenantsScreen() {
 
                 <TouchableOpacity
                   onPress={() => setIsDetailVisible(false)}
-                  className="bg-surface-container-high h-14 rounded-xl items-center justify-center"
+                  className="bg-surface-container-high h-14 rounded-2xl items-center justify-center"
                 >
                   <Text className="text-on-surface font-bold text-lg">Tutup</Text>
                 </TouchableOpacity>
               </View>
             )}
-            <View className="h-8" />
+            <View className="h-4" />
           </View>
         </View>
       </Modal>

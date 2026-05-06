@@ -165,13 +165,19 @@ export default function CheckoutScreen() {
       >
         <TouchableOpacity
           onPress={handleConfirm}
-          className={`w-full h-14 rounded-xl flex-row items-center justify-center gap-2 active:scale-95 ${selectedPayment ? 'bg-primary' : 'bg-surface-variant'}`}
-          disabled={!selectedPayment}
+          className={`w-full h-14 rounded-xl flex-row items-center justify-center gap-2 active:scale-95 ${(selectedPayment && !loading) ? 'bg-primary' : 'bg-surface-variant'}`}
+          disabled={!selectedPayment || loading}
         >
-          <Text className={`font-bold text-lg ${selectedPayment ? 'text-on-primary' : 'text-on-surface-variant'}`}>
-            Konfirmasi Sewa
-          </Text>
-          {selectedPayment && <MaterialIcons name="check-circle" size={22} color="#ffffff" />}
+          {loading ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <>
+              <Text className={`font-bold text-lg ${selectedPayment ? 'text-on-primary' : 'text-on-surface-variant'}`}>
+                Konfirmasi Sewa
+              </Text>
+              {selectedPayment && <MaterialIcons name="check-circle" size={22} color="#ffffff" />}
+            </>
+          )}
         </TouchableOpacity>
       </View>
     </View>
