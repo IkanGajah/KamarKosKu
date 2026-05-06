@@ -32,15 +32,20 @@ public class KamarController {
     @Autowired
     private TransaksiSewaRepository transaksiSewaRepository;
 
+    @Autowired
+    private RiwayatSewaRepository riwayatSewaRepository;
+
     @GetMapping
     public WebResponse<List<Kamar>> getAll() {
         List<Kamar> data = kamarRepository.findByStatusKetersediaanNot(StatusKamar.NONAKTIF);
+        populateNamaPenyewa(data);
         return new WebResponse<>(200, "Berhasil mengambil data kamar", data);
     }
 
     @GetMapping("/cabang/{cabangId}")
     public WebResponse<List<Kamar>> getByCabang(@PathVariable("cabangId") int cabangId) {
         List<Kamar> data = kamarRepository.findByCabangIdCabangAndStatusKetersediaanNot(cabangId, StatusKamar.NONAKTIF);
+        populateNamaPenyewa(data);
         return new WebResponse<>(200, "Berhasil mengambil data kamar di cabang ini", data);
     }
 
@@ -121,5 +126,20 @@ public class KamarController {
             kamarRepository.save(kamar);
             return new WebResponse<>(200, "Kamar berhasil dinonaktifkan", "OK");
         }).orElseThrow(() -> new RuntimeException("Kamar tidak ditemukan"));
+    }
+
+    private void populateNamaPenyewa(List<Kamar> data) {
+        for (Kamar kamar : data) {
+            if (StatusKamar.PENUH.equals(kamar.getStatusKetersediaan())) {
+                var transaksi = transaksiSewaRepository.findFirstByKamarIdKamarOrderByTanggalTransaksiDesc(kamar.getIdKamar());
+                if (transaksi.isPresent()) {
+                    kamar.setNamaPenyewa(transaksi.get().getPenyewa().getNama());
+                } else {
+                    // Fallback ke RiwayatSewa jika di transaksi tidak ada
+                    riwayatSewaRepository.findFirstByKamarIdKamarOrderByTanggalMasukDesc(kamar.getIdKamar())
+                        .ifPresent(r -> kamar.setNamaPenyewa(r.getPenyewa().getNama()));
+                }
+            }
+        }
     }
 }

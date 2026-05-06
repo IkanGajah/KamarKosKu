@@ -31,6 +31,10 @@ public class Kamar {
     private StatusKamar statusKetersediaan; 
 
     private String foto;
+    
+    @Transient
+    @JsonProperty("namaPenyewa")
+    private String namaPenyewa;
 
     public Kamar() {}
 
@@ -63,4 +67,7 @@ public class Kamar {
 
     public String getFoto() { return foto; }
     public void setFoto(String foto) { this.foto = foto; }
+
+    public String getNamaPenyewa() { return namaPenyewa; }
+    public void setNamaPenyewa(String namaPenyewa) { this.namaPenyewa = namaPenyewa; }
 }
