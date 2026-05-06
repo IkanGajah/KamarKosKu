@@ -61,4 +61,16 @@ public class KamarDetailDTO {
     public void setTempoBayar(String tempoBayar) {
         this.tempoBayar = tempoBayar;
     }  
+    public String setNamaAdmin(String namaAdmin){
+        this.namaAdmin = namaAdmin;
+    }
+    public String setNoTeleponAdmin(String noTeleponAdmin){
+        this.noTeleponAdmin = noTeleponAdmin;
+    }
+    public String getNamaAdmin(){
+        return namaAdmin;
+    }
+    public String getNoTeleponAdmin(){
+        return noTeleponAdmin;
+    }
 }

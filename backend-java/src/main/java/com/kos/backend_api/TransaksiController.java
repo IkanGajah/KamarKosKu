@@ -109,6 +109,14 @@ public class TransaksiController {
             .orElseGet(() -> penyewaRepository.findByEmail(user.getEmail())
                 .orElseThrow(() -> new RuntimeException("Data profil penyewa tidak ditemukan. Pastikan Anda sudah terdaftar sebagai penyewa.")));
 
+        // Cek apakah sudah ada booking PENDING untuk kamar ini oleh penyewa ini
+        java.util.Optional<TransaksiSewa> existing = transaksiRepository.findByPenyewaIdUserAndKamarIdKamarAndStatusBayar(
+            penyewa.getIdUser(), kamar.getIdKamar(), com.kos.backend_api.models.enums.StatusBayar.PENDING
+        );
+        if (existing.isPresent()) {
+            throw new RuntimeException("Anda sudah memiliki pesanan yang menunggu konfirmasi untuk kamar ini.");
+        }
+
         request.setPenyewa(penyewa);
         request.setKamar(kamar);
         request.setStatusBayar(com.kos.backend_api.models.enums.StatusBayar.PENDING);

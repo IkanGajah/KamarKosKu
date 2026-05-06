@@ -74,7 +74,7 @@ public class KamarController {
                     dto.setNoTeleponAdmin(admin.getNoTelepon());
                 });
         }
-
+        
         if (StatusKamar.PENUH.equals(kamar.getStatusKetersediaan())) {
             var transaksiOpt = transaksiSewaRepository.findFirstByKamarIdKamarOrderByTanggalTransaksiDesc(id);
             if (transaksiOpt.isPresent()) {
