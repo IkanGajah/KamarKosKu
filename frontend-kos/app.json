@@ -19,7 +19,7 @@
       "package": "com.rafifajri.manajemenkos",
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#4f46e5",
         "foregroundImage": "./assets/images/LOGO KOS pake bg.png"
       },
       "edgeToEdgeEnabled": true,
